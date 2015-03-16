@@ -1,13 +1,6 @@
 ﻿using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
-using OfficeDevPnP.PowerShell.Commands.Base;
 using Microsoft.SharePoint.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Management.Automation;
-using System.Text;
-using System.Threading.Tasks;
-using OfficeDevPnP.PowerShell.Commands.Entities;
 using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
 
 namespace OfficeDevPnP.PowerShell.Commands
@@ -15,31 +8,31 @@ namespace OfficeDevPnP.PowerShell.Commands
 
     [Cmdlet(VerbsCommon.Set, "SPODefaultContentTypeToList")]
     [CmdletHelp("Sets the default content type for a list")]
+    [CmdletExample(
+     Code = @"PS:> Set-SPODefaultContentTypeToList -List ""Project Documents"" -ContentType ""Project""",
+     Remarks = @"This will set the Project content type (which has already been added to a list) as the default content type", SortOrder = 1)]
     public class SetDefaultContentTypeToList : SPOWebCmdlet
     {
         [Parameter(Mandatory = true)]
-        public SPOListPipeBind List;
+        public ListPipeBind List;
 
         [Parameter(Mandatory = true)]
-        public SPOContentTypePipeBind ContentType;
-
-        [Parameter(Mandatory = false)]
-        public SwitchParameter DefaultContentType;
+        public ContentTypePipeBind ContentType;
 
         protected override void ExecuteCmdlet()
         {
             ContentType ct = null;
-            List list = this.SelectedWeb.GetList(List);
+            List list = SelectedWeb.GetList(List);
 
             if (ContentType.ContentType == null)
             {
                 if (ContentType.Id != null)
                 {
-                    ct = this.SelectedWeb.GetContentTypeById(ContentType.Id);
+                    ct = SelectedWeb.GetContentTypeById(ContentType.Id,true);
                 }
                 else if (ContentType.Name != null)
                 {
-                    ct = this.SelectedWeb.GetContentTypeByName(ContentType.Name);
+                    ct = SelectedWeb.GetContentTypeByName(ContentType.Name,true);
                 }
             }
             else
@@ -48,7 +41,7 @@ namespace OfficeDevPnP.PowerShell.Commands
             }
             if (ct != null)
             {
-                this.SelectedWeb.SetDefaultContentTypeToList(list, ct);
+                SelectedWeb.SetDefaultContentTypeToList(list, ct);
             }
         }
 

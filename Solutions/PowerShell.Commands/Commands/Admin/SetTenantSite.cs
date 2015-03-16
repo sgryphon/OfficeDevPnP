@@ -1,9 +1,9 @@
-﻿using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
-using OfficeDevPnP.PowerShell.Commands.Base;
+﻿#if !CLIENTSDKV15
 using System.Management.Automation;
+using Microsoft.Online.SharePoint.TenantManagement;
 using Microsoft.SharePoint.Client;
-using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
-using System;
+using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
+using OfficeDevPnP.PowerShell.Commands.Base;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
@@ -14,35 +14,34 @@ You must connect to the admin website (https://:<tenant>-admin.sharepoint.com) w
 ", Details = "Requires a connection to a SharePoint Tenant Admin site.")]
     public class SetTenantSite : SPOAdminCmdlet
     {
-        [Parameter(Mandatory = false, HelpMessage = "The URL of the site")]
+        [Parameter(Mandatory = false, HelpMessage = "The URL of the site", Position=0, ValueFromPipeline=true)]
         public string Url;
 
         [Parameter(Mandatory = false)]
         public string Title;
         [Parameter(Mandatory = false)]
-        public Nullable<Microsoft.Online.SharePoint.TenantManagement.SharingCapabilities> Sharing = null;
+        public SharingCapabilities? Sharing = null;
 
         [Parameter(Mandatory = false)]
-        public Nullable<long> StorageMaximumLevel = null;
+        public long? StorageMaximumLevel = null;
 
         [Parameter(Mandatory = false)]
-        public Nullable<long> StorageWarningLevel = null;
+        public long? StorageWarningLevel = null;
 
         [Parameter(Mandatory = false)]
-        public Nullable<double> UserCodeMaximumLevel = null;
+        public double? UserCodeMaximumLevel = null;
 
         [Parameter(Mandatory = false)]
-        public Nullable<double> UserCodeWarningLevel = null;
+        public double? UserCodeWarningLevel = null;
 
         [Parameter(Mandatory = false)]
-        public Nullable<SwitchParameter> AllowSelfServiceUpgrade = null;
+        public SwitchParameter? AllowSelfServiceUpgrade = null;
 
         protected override void ExecuteCmdlet()
         {
-            this.Tenant.SetSiteProperties(Url, title:Title, sharingCapability: Sharing, storageMaximumLevel: StorageMaximumLevel, allowSelfServiceUpgrade: AllowSelfServiceUpgrade, userCodeMaximumLevel: UserCodeMaximumLevel, userCodeWarningLevel: UserCodeWarningLevel);
+            Tenant.SetSiteProperties(Url, title:Title, sharingCapability: Sharing, storageMaximumLevel: StorageMaximumLevel, allowSelfServiceUpgrade: AllowSelfServiceUpgrade, userCodeMaximumLevel: UserCodeMaximumLevel, userCodeWarningLevel: UserCodeWarningLevel);
         }
     }
 
 }
-
-
+#endif

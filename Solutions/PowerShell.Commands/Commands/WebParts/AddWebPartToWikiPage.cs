@@ -1,13 +1,13 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
-using Microsoft.SharePoint.Client;
-using Microsoft.SharePoint.Client.WebParts;
+﻿using System.IO;
 using System.Management.Automation;
+using Microsoft.SharePoint.Client;
 using OfficeDevPnP.Core.Entities;
+using File = System.IO.File;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
-    [Cmdlet(VerbsCommon.Add, "SPOWebPartToWebPartPage")]
-    public class AddWebPartToWebPartPage : SPOWebCmdlet
+    [Cmdlet(VerbsCommon.Add, "SPOWebPartToWikiPage")]
+    public class AddWebPartToWikiPage : SPOWebCmdlet
     {
         [Parameter(Mandatory = true)]
         public string PageUrl = string.Empty;
@@ -31,33 +31,26 @@ namespace OfficeDevPnP.PowerShell.Commands
         {
             WebPartEntity wp = null;
 
-            if (ParameterSetName == "FILE")
+            switch (ParameterSetName)
             {
-                if (System.IO.File.Exists(Path))
-                {
-                    System.IO.StreamReader fileStream = new System.IO.StreamReader(Path);
-                    string webPartString = fileStream.ReadToEnd();
-                    fileStream.Close();
+                case "FILE":
+                    if (File.Exists(Path))
+                    {
+                        var fileStream = new StreamReader(Path);
+                        var webPartString = fileStream.ReadToEnd();
+                        fileStream.Close();
 
-                    wp = new WebPartEntity();
-                    wp.WebPartXml = webPartString;
-                }
-            }
-            else if (ParameterSetName == "XML")
-            {
-                wp = new WebPartEntity();
-                wp.WebPartXml = Xml;
+                        wp = new WebPartEntity {WebPartXml = webPartString};
+                    }
+                    break;
+                case "XML":
+                    wp = new WebPartEntity {WebPartXml = Xml};
+                    break;
             }
             if (wp != null)
             {
-                this.SelectedWeb.AddWebPartToWikiPage(PageUrl, wp, Row, Column, AddSpace);
+                SelectedWeb.AddWebPartToWikiPage(PageUrl, wp, Row, Column, AddSpace);
             }
-        }
-
-        public enum WPPageType
-        {
-            WikiPage,
-            WebPartPage
         }
     }
 }

@@ -1,13 +1,12 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
+﻿using System.Management.Automation;
 using Microsoft.SharePoint.Client;
-using System.Management.Automation;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
     [Cmdlet(VerbsCommon.Set, "SPOFileCheckedIn")]
     public class SetFileCheckedIn : SPOWebCmdlet
     {
-        [Parameter(Mandatory = true)]
+        [Parameter(Mandatory = true, Position=0, ValueFromPipeline=true)]
         public string Url = string.Empty;
 
         [Parameter(Mandatory = false)]
@@ -18,7 +17,7 @@ namespace OfficeDevPnP.PowerShell.Commands
 
         protected override void ExecuteCmdlet()
         {
-            this.SelectedWeb.CheckInFile(Url, CheckinType, Comment);
+            SelectedWeb.CheckInFile(Url, CheckinType, Comment);
         }
     }
 }

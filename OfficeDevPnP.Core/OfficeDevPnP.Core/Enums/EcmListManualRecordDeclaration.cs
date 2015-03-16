@@ -1,10 +1,4 @@
 ﻿
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace OfficeDevPnP.Core
 {
     /// <summary>
@@ -13,6 +7,7 @@ namespace OfficeDevPnP.Core
     /// </summary>
     public enum EcmListManualRecordDeclaration
     {
+        Unknown = 0,
         /// <summary>
         /// Use the site collection defaults
         /// </summary>

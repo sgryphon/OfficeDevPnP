@@ -1,7 +1,5 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
+﻿using System.Management.Automation;
 using Microsoft.SharePoint.Client;
-using System.Management.Automation;
-using OfficeDevPnP.Core.Entities;
 using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
 
 namespace OfficeDevPnP.PowerShell.Commands
@@ -30,12 +28,14 @@ PS:> New-SPOWeb -Title ""Project A Web"" -Url projectA -Description ""Informatio
         [Parameter(Mandatory = false, HelpMessage="By default the subweb will inherit its security from its parent, specify this switch to break this inheritance")]
         public SwitchParameter BreakInheritance = false;
 
-        [Parameter(Mandatory = false)]
+        [Parameter(Mandatory = false, HelpMessage="Specifies whether the site inherits navigation.")]
         public SwitchParameter InheritNavigation = true;
         protected override void ExecuteCmdlet()
         {
-            this.SelectedWeb.CreateWeb(Title, Url, Description, Template, Locale, !BreakInheritance,InheritNavigation);
-            WriteVerbose(string.Format(Properties.Resources.Web0CreatedAt1, Title, Url));
+            var web = SelectedWeb.CreateWeb(Title, Url, Description, Template, Locale, !BreakInheritance,InheritNavigation);
+            ClientContext.Load(web, w => w.Id, w => w.Url);
+            ClientContext.ExecuteQueryRetry();
+            WriteObject(web);
         }
 
     }

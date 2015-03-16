@@ -1,14 +1,9 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
-using Microsoft.SharePoint.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.IO;
+﻿using System;
 using System.Management.Automation;
-using System.Text;
-using System.Threading.Tasks;
-using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
+using Microsoft.SharePoint.Client;
 using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
+using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
+using OfficeDevPnP.PowerShell.Commands.Enums;
 
 namespace OfficeDevPnP.PowerShell.Commands.Features
 {
@@ -19,7 +14,7 @@ namespace OfficeDevPnP.PowerShell.Commands.Features
     [CmdletExample(Code = "PS:> Disable-SPOnlineFeature -Identity 99a00f6e-fb81-4dc7-8eac-e09c6f9132fe -Scope Web")]
     public class DisableFeature : SPOCmdlet
     {
-        [Parameter(Mandatory = false, ParameterSetName = ParameterAttribute.AllParameterSets, HelpMessage = "The id of the feature to disable.")]
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = ParameterAttribute.AllParameterSets, HelpMessage = "The id of the feature to disable.")]
         public GuidPipeBind Identity;
 
         [Parameter(Mandatory = false, ParameterSetName = ParameterAttribute.AllParameterSets, HelpMessage = "Forcibly disable the feature.")]
@@ -40,12 +35,6 @@ namespace OfficeDevPnP.PowerShell.Commands.Features
             {
                 ClientContext.Site.DeactivateFeature(featureId);
             }
-        }
-
-        public enum FeatureScope
-        {
-            Web,
-            Site
         }
     }
 }

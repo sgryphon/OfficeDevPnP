@@ -9,7 +9,7 @@ namespace OfficeDevPnP.PowerShell.Commands
     public class RemoveList : SPOWebCmdlet
     {
         [Parameter(Mandatory = true, ValueFromPipeline = true, Position = 0, HelpMessage = "The ID or Title of the list.")]
-        public SPOListPipeBind Identity = new SPOListPipeBind();
+        public ListPipeBind Identity = new ListPipeBind();
 
         [Parameter(Mandatory = false)]
         public SwitchParameter Force;
@@ -17,13 +17,13 @@ namespace OfficeDevPnP.PowerShell.Commands
         {
             if (Identity != null)
             {
-                var list = this.SelectedWeb.GetList(Identity);
+                var list = SelectedWeb.GetList(Identity);
                 if (list != null)
                 {
                     if (Force || ShouldContinue(Properties.Resources.RemoveList, Properties.Resources.Confirm))
                     {
                         list.DeleteObject();
-                        ClientContext.ExecuteQuery();
+                        ClientContext.ExecuteQueryRetry();
                     }
                 }
             }

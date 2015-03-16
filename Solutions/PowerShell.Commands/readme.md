@@ -1,4 +1,4 @@
-﻿# OfficeDevPnP.PowerShell Commands #
+# OfficeDevPnP.PowerShell Commands #
 
 ### Summary ###
 This solution shows how you can build a library of PowerShell commands that act towards SharePoint Online. The commands use CSOM and can work against both SharePoint Online as SharePoint On-Premises.
@@ -8,10 +8,13 @@ This solution shows how you can build a library of PowerShell commands that act 
 -  Office 365 Dedicated (D)
 -  SharePoint 2013 on-premises
 
+### Prerequisites ###
+In order to build the setup project the Wix toolset needs to be installed. You can obtain this from http://wix.codeplex.com.
+
 ### Solution ###
 Solution | Author(s)
 ---------|----------
-OfficeDevPnP.PowerShell | Erwin van Hunen (Knowit Reaktor Stockholm AB)
+OfficeDevPnP.PowerShell | Erwin van Hunen (**Knowit Reaktor Stockholm AB**)
 
 ### Version history ###
 Version  | Date | Comments
@@ -31,109 +34,225 @@ A build script will copy the required files to a folder in your users folder, ca
 This will automatically load the module after starting PowerShell 3.0.
 To use the library you first need to connect to your tenant:
 
-	Connect-SPOnline –Url https://yoursite.sharepoint.com –Credentials (Get-Credential)
+```powershell
+Connect-SPOnline –Url https://yoursite.sharepoint.com –Credentials (Get-Credential)
+```
 
 In case of an unattended script you might want to add a new entry in your credential manager of windows. 
 
 ![](http://i.imgur.com/6NiMaFL.png)
  
-Select Windows Credentials and add a new credential:
+Select Windows Credentials and add a new *generic* credential:
 
 ![](http://i.imgur.com/rhtgL1U.png)
  
 Now you can use this entry to connect to your tenant as follows:
 
-	Connect-SPOnline –Url https://yoursite.sharepoint.com –Credentials yourlabel
-
+```powershell
+Connect-SPOnline –Url https://yoursite.sharepoint.com –Credentials yourlabel
+```
 
 ## Commands ##
 Here's a list of different provider commands. Many commands provide built-in help and examples, e.g. 
 
-   Get-Help Add-SPOApp -Detailed
+```powershell
+Get-Help Connect-SPOnline -Detailed
+```
 
 We are looking to provide more examples to usage of these sooner or later.
 
 
+#### Base Cmdlets ####
 Command | Description
---------|------------
-**Add-SPOApp** | Adds an app, uploads a local .app file to a site
-**Add-SPOContentType** | Creates a new content type
-**Add-SPOContentTypeToList** | Adds an existing content type to a list
-**Add-SPOCustomAction** | Adds a custom action to a site
-**Add-SPOEventReceiver** |	Registers an event receiver to a site/list
-**Add-SPOField** | Adds a new field
-**Add-SPOFieldToContentType** | Adds a field to an existing content type
-**Add-SPOFile** | Uploads a file to a site
-**Add-SPONavigationLink** | Adds a new link to the quicklaunch navigation
-**Add-SPOTaxonomyField** | Creates a new Taxonomy field
-**Add-SPOUserToGroup** | Adds a user to a group
-**Add-SPOView** | Adds a new view to an existing list
-**Add-SPOWebPart** | Adds a webpart to an existing page. The webparts needs to be available on the server
-**Add-SPOWikiPage** | Adds a new wikipages to a site
-**Connect-SPOnline** | Creates a new connection context to be used by all commands
-**Disable-SPOFeature** | Disables a feature
-**Disconnect-SPOnline** | Disconnects the context
-**Enable-SPOFeature**| Enables a feature
-**Execute-SPOQuery** | Convenience command that executes the current query. See **Get-SPOContext**
-**Export-SPOTaxonomy** | Exports (a part of) the taxonomy terms
-**Find-SPOFile** | Finds a file in the current site
-**Get-SPOAppInstance** | Gets an app instance
-**Get-SPOConfiguration** |	Gets the current configuration (currently not being used)
-**Get-SPOContentType** | Returns a content type
-**Get-SPOContext** | Returns a ClientContext object for use in more detailed powershell commands.
-**Get-SPOCustomAction** | Returns an existing custom action
-**Get-SPOEventReceiver** | Returns event receivers
-**Get-SPOFeature** | Returns features
-**Get-SPOField** | Returns a field
-**Get-SPOFile** | Returns a file
-**Get-SPOGroup** | Returns a group
-**Get-SPOHealthScore** | Gets the current health score of the server
-**Get-SPOHomePage** | Returns the url of the current homepage
-**Get-SPOList** | Returns a list
-**Get-SPOMasterPage** | Returns the urls of the current assigned masterpages
-**Get-SPOPropertyBag** | Returns the propertybag
-**Get-SPOSite** | Returns the current site
-**Get-SPOStoredCredential** | Returns a stored credentials from the credential manager as a PowerShell credential
-**Get-SPOSubWebs** | Returns the subwebs
-**Get-SPOTaxonomyItem** | Returns a specific item from the taxonomy
-**Get-SPOTaxonomySession** | Returns a taxonomy session
-**Get-SPOTenantSite** | Returns a site from your tenant administration. For this to work you need to connect to your tenant admin first with 
-**Get-SPOTimeZoneId** |	Returns all timezone ids to  be used to create a new site collection in your tenant
-**Get-SPOView** | Returns the views of a list
-**Get-SPOWeb** | Returns the current web
-**Get-SPOWebPart** | Returns the webparts on a given page
-**Get-SPOWebTemplates** | Returns all webtemplates
-**Get-SPOWikiPageContent** | Returns the HTML content of a wikipage
-**Get-SPORealm** | Returns the authentication realm for use for app only authentication. See **Connect-SPOnline -AppId -AppSecret -Realm**
-**Import-SPOTaxonomy** | Imports a taxonomy into the managed metadata service. See the help of the command for examples
-**New-SPOList** | Creates a new list
-**New-SPOOnPremSite** | Currently not implemented
-**New-SPOTenantSite** | Creates a new site collection in your tenant
-**New-SPOUser** | Equivalent to web.EnsureUser(user)
-**New-SPOWeb** | Creates a new web
-**Remove-SPOApp** | Removes an app from the site contents
-**Remove-SPOContentType** | Removes a content types
-**Remove-SPOCustomAction** | Removes a custom action from a site
-**Remove-SPOEventReceiver** | Removes an event receiver
-**Remove-SPOField** | Removes a field
-**Remove-SPOList** | Removes a list
-**Remove-SPOPropertyBagValue** | Removes a property bag entry
-**Remove-SPOTenantSite** | Removes a site from your tenant
-**Remove-SPOUserFromGroup** | Removes a user from a group
-**Remove-SPOView** | Removes a view
-**Remove-SPOWebPart** |	Removes a webpart
-**Remove-SPOWikiPage**| Removes a wiki page
-**Request-SPOReIndexWeb** |	Requests a site to fully crawled the next incremental crawl
-**Set-SPOAppSideLoading** | Turns app sideloading on or off for a site
-**Set-SPOConfiguration** | Sets a configuration value, currently not used
-**Set-SPOFileCheckedIn** | Checks in a file
-**Set-SPOFileCheckedOut** | Checks out a file
-**Set-SPOHomePage** | Sets the current homepage
-**Set-SPOIndexedProperties** |Sets what property of the propertybag should be indexed by search
-**Set-SPOMasterPage** | Sets the masterpage
-**Set-SPOMinimalDownloadStrategy** | Turns MDS on or off
-**Set-SPOPropertyBagValue** | Sets a property bag value
-**Set-SPOTaxonomyFieldValue** | Sets a taxonomy field value
-**Set-SPOTheme** | Sets the current theme
-**Set-SPOWebPartProperty** | Sets a webpart property
-**Set-SPOWikiPageContent** | Sets the content of a wikipage
+:--------|:------------
+**[Connect-SPOnline](Documentation/ConnectSPOnline.md)** | Creates a new connection context to be used by all commands
+**[Disconnect-SPOnline](Documentation/DisconnectSPOnline.md)** | Disconnects the context
+**[Execute-SPOQuery](Documentation/ExecuteSPOQuery.md)** | Convenience command that executes the current query. See **Get-SPOContext**
+**[Get-SPOConfiguration](Documentation/GetSPOConfiguration.md)** |	Gets the current configuration, alike a local property bag
+**[Get-SPOContext](Documentation/GetSPOContext.md)** | Returns a ClientContext object for use in your own powershell scripts that use CSOM
+**[Get-SPOHealthScore](Documentation/GetSPOHealthScore.md)** | Gets the current health score of the server
+**[Get-SPOStoredCredential](Documentation/GetSPOStoredCredential.md)** | Returns a stored credentials from the credential manager as a PowerShell credential
+**[Set-SPOConfiguration](Documentation/SetSPOConfiguration.md)** | Sets a configuration value, stored locally, alike a local property bag
+
+#### Tenant Administration Cmdlets ####
+Command | Description
+:--------|:------------
+**[Get-SPOTenantSite](Documentation/GetSPOTenantSite.md)** | Returns a site from your tenant administration. For this to work you need to connect to your tenant admin first with 
+**[Get-SPOTimeZoneId](Documentation/GetSPOTimeZoneId.md)** |	Returns all timezone ids to  be used to create a new site collection in your tenant
+**[Get-SPOWebTemplates](Documentation/GetSPOWebTemplates.md)** | Returns all webtemplates
+**[New-SPOTenantSite](Documentation/NewSPOTenantSite.md)** | Creates a new site collection in your tenant
+**[Remove-SPOTenantSite](Documentation/RemoveSPOTenantSite.md)** | Removes a site from your tenant
+**[Set-SPOTenantSite](Documentation/SetSPOTenantSite.md)** | Sets properties on an existing tenant site collection
+
+#### App Cmdlets ####
+Command | Description
+:--------|:------------
+**[Import-SPOAppPackage](Documentation/ImportSPOAppPackage.md)** | Uploads an app package to a site
+**[Get-SPOAppInstance](Documentation/GetSPOAppInstance.md)** | Gets an app instance
+**[Uninstall-SPOAppInstance](Documentation/UninstallSPOAppInstance.md)** | Removes an app instance from a site
+
+#### App Authentication Cmdlets ####
+Command | Description
+:--------|:------------
+**[Get-SPOAuthenticationRealm](Documentation/GetSPOAuthenticationRealm.md)** | Returns the authentication realm for use for app only authentication. See **[Connect-SPOnline](Documentation/ConnectSPOnline.md) -AppId -AppSecret -Realm**
+
+#### Content Type Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOContentType](Documention/AddSPOContentType.md)** | Creates a new content type
+**[Add-SPOContentTypeToList](Documentation/AddSPOContentTypeToList.md)** | Adds an existing content type to a list
+**[Add-SPOFieldToContentType](Documentation/AddSPOFieldToContentType.md)** | Adds a field to an existing content type
+**[Get-SPOContentType](Documentation/GetSPOContentType.md)** | Returns a content type
+**[Remove-SPOContentType](Documentation/RemoveSPOContentType.md)** | Removes a content types
+**[Set-SPODefaultContentTypeToList](Documentation/SetSPODefaultContentTypeToList)** | Sets the default content type to use for a list
+
+#### Event Receiver Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOEventReceiver](Documentation/AddSPOEventReceiver.md)** |	Registers an event receiver to a site/list
+**[Get-SPOEventReceiver](Documentation/GetSPOEventReceiver.md)** | Returns event receivers
+**[Remove-SPOEventReceiver](Documentation/RemoveSPOEventReceiver.md)** | Removes an event receiver
+
+#### Feature Cmdlets ####
+Command | Description
+:--------|:------------
+**[Disable-SPOFeature](Documentation/DisableSPOFeature.md)** | Disables a feature
+**[Enable-SPOFeature](Documentation/EnableSPOFeature.md)**| Enables a feature
+**[Get-SPOFeature](Documentation/GetSPOFeature.md)** | Returns features
+
+#### Field Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOField](Documentation/AddSPOField.md)** | Adds a new field
+**[Add-SPOFieldFromXml](Documentation/AddSPOFieldFromXml.md)** | Adds a new field based on a CAML xml snippet, see http://msdn.microsoft.com/en-us/library/office/ms437580(v=office.15).aspx
+**[Add-SPOTaxonomyField](Documentation/AddSPOTaxonomyField.md)** | Creates a new Taxonomy field
+**[Get-SPOField](Documentation/GetSPOField.md)** | Returns a field
+**[Remove-SPOField](Documentation/RemoveSPOField.md)** | Removes a field
+
+#### List Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOView](Documentation/AddSPOView.md)** | Adds a new view to an existing list
+**[Get-SPOList](Documentation/GetSPOList.md)** | Returns a list
+**[Get-SPOView](Documentation/GetSPOView.md)** | Returns the views of a list
+**[Get-SPOListItem](Documentation/GetSPOListItem.md)** | Retrieve list items by id, unique id, or CAML. Optionally you can define which fields to load.
+**[New-SPOList](Documentation/NewSPOList.md)** | Creates a new list
+**[Remove-SPOList](Documentation/RemoveSPOList.md)** | Removes a list
+**[Remove-SPOView](Documentation/RemoveSPOView.md)** | Removes a view
+**[Set-SPODefaultColumnValues](Documentation/SetSPODefaultColumnValues.md)** | Sets default column values for a document library
+**[Set-SPOList](Documentation/SetSPOList.md)** | Sets list properties
+**[Set-SPOListPermission](Documentation/SetSPOListPermission.md)** | Sets list permissions
+
+#### User and Group Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOUserToGroup](Documentation/AddSPOUserToGroup.md)** | Adds a user to a group
+**[Get-SPOGroup](Documentation/GetSPOGroup.md)** | Returns a group
+**[New-SPOGroup](Documentation/NewSPOGroup.md)** | Creates a group
+**[New-SPOUser](Documentation/NewSPOUser.md)** | Adds a user to the Site User Info List. Equivalent to web.EnsureUser(user)
+**[Remove-SPOUserFromGroup](Documentation/RemoveSPOUserFromGroup.md)** | Removes a user from a group
+**[Set-SPOGroup](Documentation/SetSPOGroup.md)** | Sets a group as an associated group (Owners, Members, Visitors) or adds or removes a role assignment (e.g. "Contribute", "Read", etc.)
+
+#### Site Cmdlets ####
+Command | Description
+:--------|:------------
+**[Get-SPOSite](Documentation/GetSPOSite.md)** | Returns the current site
+**[Set-SPOAppSideLoading](Documentation/SetSPOAppSideLoading.md)** | Turns app sideloading on or off for a site
+
+#### Taxonomy / Managed Metadata Cmdlets ####
+Command | Description
+:--------|:------------
+**[Export-SPOTaxonomy](Documentation/ExportSPOTaxonomy.md)** | Exports (a part of) the taxonomy terms
+**[Get-SPOTaxonomyItem](Documentation/GetSPOTaxonomyItem.md)** | Returns a specific item from the taxonomy
+**[Get-SPOTaxonomySession](Documentation/GetSPOTaxonomySession.md)** | Returns a taxonomy session
+**[Import-SPOTaxonomy](Documentation/ImportSPOTaxonomy.md)** | Imports a taxonomy into the managed metadata service. See the help of the command for examples
+**[Set-SPOTaxonomyFieldValue](Documentation/SetSPOTaxonomyFieldValue.md)** | Sets a taxonomy field value
+
+#### Utility Cmdlets ####
+Command | Description
+:--------|:------------
+**[Send-SPOMail](Documentation/SendSPOMail.md)** | Sends an email. Server defaults to smtp.office365.com but can be changed.
+
+#### Web Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOCustomAction](Documentation/AddSPOCustomAction.md)** | Adds a custom action to a site
+**[Add-SPOFile](Documentation/AddSPOFile.md)** | Uploads a file to a site
+**[Add-SPOFolder](Documentation/AddSPOFolder.md)** | Creates a folder in a site
+**[Add-SPONavigationNode](Documentation/AddSPONavigationNode.md)** | Adds a new link to the quicklaunch or top navigation
+**[Find-SPOFile](Documentation/FindSPOFile.md)** | Finds a file in the current site
+**[Get-SPOCustomAction](Documentation/GetSPOCustomAction.md)** | Returns an existing custom action
+**[Get-SPOFile](Documentation/GetSPOFile.md)** | Returns a file
+**[Get-SPOHomePage](Documentation/GetSPOHomePage.md)** | Returns the url of the current homepage
+**[Get-SPOMasterPage](Documentation/GetSPOMasterPage.md)** | Returns the urls of the current assigned masterpages
+**[Get-SPOPropertyBag](Documentation/GetSPOPropertyBag.md)** | Returns the propertybag
+**[Get-SPOSubWebs](Documentation/GetSPOSubwebs.md)** | Returns the subwebs
+**[Get-SPOWeb](Documentation/GetSPOWeb.md)** | Returns the current web
+**[Get-SPOIndexedPropertyKeys](Documentation/GetSPOIndexedPropertyKeys.md)** | Returns all keys in the property bag set for indexing
+**[New-SPOWeb](Documentation/NewSPOWeb.md)** | Creates a new web
+**[Remove-SPOCustomAction](Documentation/RemoveSPOCustomAction.md)** | Removes a custom action from a web
+**[Remove-SPONavigationNode](Documentation/RemoveSPONavigationNode.md)** | Removes a link from the quicklaunch or top navigation
+**[Remove-SPOPropertyBagValue](Documentation/RemoveSPOPropertyBagValue.md)** | Removes a property bag entry
+**[Request-SPOReIndexWeb](Documentation/RequestSPOReIndexWeb)** |	Requests a site to fully crawled the next incremental crawl
+**[Set-SPOFileCheckedIn](Documentation/SetSPOFileCheckedIn.md)** | Checks in a file
+**[Set-SPOFileCheckedOut](Documentation/SetSPOFileCheckedOut.md)** | Checks out a file
+**[Set-SPOHomePage](Documentation/SetSPOHomepage.md)** | Sets the current homepage
+**[Set-SPOIndexedProperties](Documentation/SetSPOIndexedProperties.md)** |Sets what property of the propertybag should be indexed by search
+**[Set-SPOMasterPage](Documentation/SetSPOMasterPage.md)** | Sets the masterpage
+**[Set-SPOMinimalDownloadStrategy](Documentation/SetSPOMinimalDownloadStrategy.md)** | Turns MDS on or off
+**[Set-SPOPropertyBagValue](Documentation/SetSPropertyBagValue.md)** | Sets a property bag value
+**[Set-SPOTheme](Documentation/SetSPOTheme.md)** | Sets the current theme
+
+#### Web Part Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOWebPartToWebPartPage](Documentation/AddSPOWebPartToWebPartPage.md)** | Adds a webpart to an existing web part page. The webparts needs to be available on the server
+**[Add-SPOWebPartToWikiPage](Documentation/AddSPOWebPartToWikiPage.md)** | Adds a webpart to an existing wiki page. The webparts needs to be available on the server
+**[Get-SPOWebPart](Documentation/GetSPOWebPart.md)** | Returns the webparts on a given page
+**[Remove-SPOWebPart](Documentation/GetSPOWebPart.md)** |	Removes a webpart from a page
+**[Set-SPOWebPartProperty](Documentation/SetSPOWebPartProperty.md)** | Sets a webpart property
+**[Get-SPOWebPartProperty](Documentation/GetSPOWebPartProperty.md)** | Returns webpart properties
+
+#### Wiki Page Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOWikiPage](Documentation/AddSPOWikiPage.md)** | Adds a new wikipages to a site
+**[Get-SPOWikiPageContent](Documentation/GetSPOWikiPageContent.md)** | Returns the HTML content of a wikipage
+**[Remove-SPOWikiPage](Documentation/RemoveSPOWikiPage.md)**| Removes a wiki page
+**[Set-SPOWikiPageContent](Documentation/SetSPOWikiPageContent.md)** | Sets the content of a wikipage
+
+#### Publishing Page Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOPublishingPage](Documentation/AddSPOPublishingPage.md)** | Adds a new publishing page to a site
+**[Add-SPOPublishingPageLayout](Documentation/AddSPOPublishingPageLayout.md)** | Adds a new .aspx publishing page layout to a site
+**[Add-SPOHtmlPublishingPageLayout](Documentation/AddSPOHtmlPublishingPageLayout.md)** | Adds a new .html publishing page layout to a site
+
+Examples (Note: The associated content type in the example is the "Welcome Page" built in content type)
+
+```powershell
+Add-SPOPublishingPage -PageName "your-page-name" -PageTemplateName "BlankWebPartPage" -Title "Your Page Title" -Publish
+
+Add-SPOPublishingPageLayout -SourceFilePath "Path-To-Your-Page-Layout" -Title "Your Title" -Description "Your Description" -AssociatedContentTypeID "0x010100C568DB52D9D0A14D9B2FDCC96666E9F2007948130EC3DB06458
+4E219954237AF390064DEA0F50FC8C147B0B6EA0636C4A7D4"
+
+Add-SPOHtmlPublishingPageLayout -SourceFilePath "Path-To-Your-Page-Layout" -Title "Your Title" -Description "Your Description" -AssociatedContentTypeID "0x010100C568DB52D9D0A14D9B2FDCC96666E9F2007948130EC3DB06458
+4E219954237AF390064DEA0F50FC8C147B0B6EA0636C4A7D4"
+```
+
+#### User Profile / OD4B Cmdlets ####
+Command | Description
+:--------|:------------
+**[Get-SPOUserProfileProperty](Documentation/GetSPOUserProfileProperty.md)** | Returns the user profile properties for one or more users
+**[New-SPOPersonalSite](Documentation/NewSPOPersonalSite.md)** | Provisions a profile site. Only works towards Office365
+
+#### Workflow Cmdlets ####
+Command | Description
+:--------|:------------
+**[Add-SPOWorkflowSubscription](Documentation/AddSPOWorkflowSubscription.md)** | Adds a new subscription (association) to a list or web
+**[Get-SPOWorkflowDefinition](Documentation/GetSPOWorkflowDefinition.md)** | Returns all or a specific workflow definition (reusable workflow)
+**[Get-SPOWorkflowSubscription](Documentation/GetSPOWorkflowSubscription.md)** | Returns all or a specific workflow subscription
+**[Remove-SPOWorkflowDefinition](Documentation/RemoveSPOWorkflowDefinition.md)** | Removes a workflow definition (reusable workflow)
+**[Remove-SPOWorkflowSubscription](Documentation/RemoveSPOWorkflowSubscription.md)** | Removes a workflow subscription
+**[Resume-SPOWorkflowInstance](Documentation/ResumeSPOWorkflowInstance.md)** | Resumes a workflow instance
+**[Stop-SPOWorkflowInstance](Documentation/StopSPOWorkflowInstance.md)** | Stops (cancels) a workflow instance

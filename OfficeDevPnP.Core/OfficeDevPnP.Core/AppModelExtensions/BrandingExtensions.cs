@@ -1,17 +1,13 @@
-﻿using Microsoft.SharePoint.Client;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Linq;
+using System.Xml;
 using OfficeDevPnP.Core;
 using OfficeDevPnP.Core.Entities;
 using OfficeDevPnP.Core.Utilities;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml;
-using LanguageTemplateHash = System.Collections.Generic.Dictionary<string,
-                                                                    System.Collections.Generic.List<string>>;
+using LanguageTemplateHash = System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>>;
 
 namespace Microsoft.SharePoint.Client
 {
@@ -19,13 +15,17 @@ namespace Microsoft.SharePoint.Client
     /// <summary>
     /// Class that deals with branding features
     /// </summary>
-    public static class BrandingExtensions
+    public static partial class BrandingExtensions
     {
         const string AvailablePageLayouts = "__PageLayouts";
         const string DefaultPageLayout = "__DefaultPageLayout";
         const string AvailableWebTemplates = "__WebTemplates";
         const string InheritWebTemplates = "__InheritWebTemplates";
+        const string InheritMaster = "__InheritMasterUrl";
+        const string InheritCustomMaster = "__InheritCustomMasterUrl";
+        const string InheritTheme = "__InheritsThemedCssFolderUrl";
         const string Inherit = "__Inherit";
+        const string CurrentLookName = "Current";
         const string CAML_QUERY_FIND_BY_FILENAME = @"
                 <View>
                     <Query>                
@@ -38,382 +38,341 @@ namespace Microsoft.SharePoint.Client
                      </Query>
                 </View>";
 
+
         /// <summary>
-        /// Deploy new theme to site collection. To be used with root web in site collection
+        /// Checks if a composed look exists.
         /// </summary>
-        /// <param name="web">Site to be processed - can be root web or sub site</param>
-        /// <param name="themeName">Name for the new theme</param>
-        /// <param name="colorFilePath">Color file location to deploy for the theme</param>
-        /// <param name="fontFilePath">Font file location to deploy for the theme</param>
-        /// <param name="backgroundImagePath">Background image location to deploy for the team</param>
-        /// <param name="masterPageName">Master page name for the theme. Note the master page is not uploaded, only referenced in the theme definition.</param>
-        public static void DeployThemeToWeb(this Web web, string themeName, string colorFilePath, string fontFilePath, string backgroundImagePath, string masterPageName)
+        /// <param name="web">Web to check</param>
+        /// <param name="composedLookName">Name of the composed look</param>
+        /// <returns>true if it exists; otherwise false</returns>
+        public static bool ComposedLookExists(this Web web, string composedLookName)
         {
-            DeployThemeToWebImplementation(web, web, themeName, colorFilePath, fontFilePath, backgroundImagePath, masterPageName);
+            var found = GetComposedLook(web, composedLookName);
+            return (found != null);
         }
 
         /// <summary>
-        /// Deploy new theme to specific site and ensure that theme exists in the site collection. Should be used if theme is deployed to sub site in site collection.
+        /// Creates (or updates) a composed look in the web site; usually this is done in the root site of the collection.
         /// </summary>
-        /// <param name="web">Site to be processed - can be root web or sub site</param>
-        /// <param name="themeName">Name for the new theme</param>
-        /// <param name="colorFilePath">Color file location to deploy for the theme</param>
-        /// <param name="fontFilePath">Font file location to deploy for the theme</param>
-        /// <param name="backgroundImagePath">Background image location to deploy for the team</param>
-        /// <param name="masterPageName">Master page name for the theme. Note the master page is not uploaded, only referenced in the theme definition.</param>
-        public static void DeployThemeToSubWeb(this Web web, Web rootWeb, string themeName, string colorFilePath, string fontFilePath, string backgroundImagePath, string masterPageName)
+        /// <param name="web">Web to create the composed look in</param>
+        /// <param name="lookName">Name of the theme</param>
+        /// <param name="paletteFileName">File name of the palette file in the theme catalog of the site collection; path component ignored.</param>
+        /// <param name="fontFileName">File name of the font file in the theme catalog of the site collection; path component ignored.</param>
+        /// <param name="backgroundFileName">File name of the background image file in the theme catalog of the site collection; path component ignored.</param>
+        /// <param name="masterFileName">File name of the master page in the mastepage catalog of the web site; path component ignored.</param>
+        /// <param name="displayOrder">Display order of the composed look</param>
+        /// <param name="replaceContent">Replace composed look if it already exists (default true)</param>
+        public static void CreateComposedLookByName(this Web web, string lookName, string paletteFileName, string fontFileName, string backgroundFileName, string masterFileName, int displayOrder = 1, bool replaceContent = true)
         {
-            DeployThemeToWebImplementation(web, rootWeb, themeName, colorFilePath, fontFilePath, backgroundImagePath, masterPageName);
-        }
+            var paletteUrl = default(string);
+            var fontUrl = default(string);
+            var backgroundUrl = default(string);
+            var masterUrl = default(string);
 
-        private static void DeployThemeToWebImplementation(Web web, Web rootWeb, string themeName, string colorFilePath, string fontFilePath, string backgroundImagePath, string masterPageName)
-        {
-            LoggingUtility.Internal.TraceInformation((int)EventId.DeployTheme, "Deploying theme '{0}' to '{1}'", themeName, web.Context.Url);
-
-            // Deploy files one by one to proper location
-            if (!string.IsNullOrEmpty(colorFilePath) && System.IO.File.Exists(colorFilePath))
+            if (!web.IsPropertyAvailable("ServerRelativeUrl"))
             {
-                rootWeb.DeployFileToThemeFolderSite(colorFilePath);
-            }
-            if (!string.IsNullOrEmpty(fontFilePath) && System.IO.File.Exists(fontFilePath))
-            {
-                rootWeb.DeployFileToThemeFolderSite(fontFilePath);
-            }
-            if (!string.IsNullOrEmpty(backgroundImagePath) && System.IO.File.Exists(backgroundImagePath))
-            {
-                rootWeb.DeployFileToThemeFolderSite(backgroundImagePath);
+                web.Context.Load(web, w => w.ServerRelativeUrl);
+                web.Context.ExecuteQueryRetry();
             }
 
-            // Let's also add entry to the Theme catalog. This is not actually required, but provides visibility for the theme option, if manually changed
-            web.AddNewThemeOptionToWebImplementation(rootWeb, themeName, colorFilePath, fontFilePath, backgroundImagePath, masterPageName);
+            if (!string.IsNullOrEmpty(paletteFileName))
+            {
+                paletteUrl = UrlUtility.Combine(web.ServerRelativeUrl, string.Format(Constants.THEMES_DIRECTORY, Path.GetFileName(paletteFileName)));
+            }
+            if (!string.IsNullOrEmpty(fontFileName))
+            {
+                fontUrl = UrlUtility.Combine(web.ServerRelativeUrl, string.Format(Constants.THEMES_DIRECTORY, Path.GetFileName(fontFileName)));
+            }
+            if (!string.IsNullOrEmpty(backgroundFileName))
+            {
+                backgroundUrl = UrlUtility.Combine(web.ServerRelativeUrl, string.Format(Constants.THEMES_DIRECTORY, Path.GetFileName(backgroundFileName)));
+            }
+
+            if (!string.IsNullOrEmpty(masterFileName))
+            {
+                masterUrl = UrlUtility.Combine(web.ServerRelativeUrl, string.Format(Constants.MASTERPAGE_DIRECTORY, Path.GetFileName(masterFileName)));
+            }
+
+            CreateComposedLookByUrl(web, lookName, paletteUrl, fontUrl, backgroundUrl, masterUrl, displayOrder, replaceContent);
         }
 
         /// <summary>
-        /// Checks to see if the theme already exists.
+        /// Creates (or updates) a composed look in the web site; usually this is done in the root site of the collection.
         /// </summary>
-        /// <param name="web">Site to be processed</param>
-        /// <param name="themeName">Name for the new theme</param>
-        /// <returns>True if theme exists, false otherwise</returns>
-        public static bool ThemeEntryExists(this Web web, string themeName)
+        /// <param name="web">Web to create the composed look in</param>
+        /// <param name="lookName">Name of the theme</param>
+        /// <param name="paletteServerRelativeUrl">URL of the palette file, usually in the theme catalog of the site collection</param>
+        /// <param name="fontServerRelativeUrl">URL of the font file, usually in the theme catalog of the site collection</param>
+        /// <param name="backgroundServerRelativeUrl">URL of the background image file, usually in /_layouts/15/images</param>
+        /// <param name="masterServerRelativeUrl">URL of the master page, usually in the masterpage catalog of the web site</param>
+        /// <param name="displayOrder">Display order of the composed look</param>
+        /// <param name="replaceContent">Replace composed look if it already exists (default true)</param>
+        public static void CreateComposedLookByUrl(this Web web, string lookName, string paletteServerRelativeUrl, string fontServerRelativeUrl, string backgroundServerRelativeUrl, string masterServerRelativeUrl, int displayOrder = 1, bool replaceContent = true)
         {
-            // Let's get instance to the composite look gallery
-            List themesList = web.GetCatalog((int)ListTemplateType.DesignCatalog);
-            web.Context.Load(themesList);
-            web.Context.ExecuteQuery();
+            Utility.EnsureWeb(web.Context, web, "ServerRelativeUrl");
+            var composedLooksList = web.GetCatalog((int)ListTemplateType.DesignCatalog);
 
-            return web.ThemeEntryExists(themeName, themesList);
-        }
-
-        /// <summary>
-        /// Checks to see if the theme already exists
-        /// </summary>
-        /// <param name="web">Site to be processed</param>
-        /// <param name="themeName">Name for the new theme</param>
-        /// <param name="themeGalleryList">SharePoint theme gallery list</param>
-        /// <returns>True if theme exists, false otherwise</returns>
-        public static bool ThemeEntryExists(this Web web, string themeName, List themeGalleryList)
-        {
+            // Check for existing, by name
             CamlQuery query = new CamlQuery();
-            string camlString = @"
-                <View>
-                    <Query>                
-                        <Where>
-                            <Eq>
-                                <FieldRef Name='Name' />
-                                <Value Type='Text'>{0}</Value>
-                            </Eq>
-                        </Where>
-                     </Query>
-                </View>";
-            // Let's update the theme name accordingly
-            camlString = string.Format(camlString, themeName);
-            query.ViewXml = camlString;
-            var found = themeGalleryList.GetItems(query);
-            web.Context.Load(found);
-            web.Context.ExecuteQuery();
-            if (found.Count > 0)
+            query.ViewXml = string.Format(CAML_QUERY_FIND_BY_FILENAME, lookName);
+            var existingCollection = composedLooksList.GetItems(query);
+            web.Context.Load(existingCollection);
+            web.Context.ExecuteQueryRetry();
+            ListItem item = existingCollection.FirstOrDefault();
+
+            if (item == null)
             {
-                return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Add new theme option to the sub site.
-        /// </summary>
-        /// <param name="web">Actual site where theme is applied.</param>
-        /// <param name="rootWeb">Root site of the site collection. Needed for resolving the right relative path for the files</param>
-        /// <param name="themeName">Name for the new theme</param>
-        /// <param name="colorFileName">Color file for the theme</param>
-        /// <param name="fontFileName">Font file for the theme</param>
-        /// <param name="backgroundImageName">Background image for the team</param>
-        /// <param name="masterPageName">Master page name for the theme. Only name of the master page needed, no full path to catalog</param>
-        public static void AddNewThemeOptionToSubWeb(this Web web, Web rootWeb, string themeName, string colorFileName, string fontFileName, string backgroundName, string masterPageName)
-        {
-            AddNewThemeOptionToWebImplementation(web, rootWeb, themeName, colorFileName, fontFileName, backgroundName, masterPageName);
-        }
-
-        /// <summary>
-        /// Add new theme option to the site.
-        /// </summary>
-        /// <param name="web">Actual site where theme is applied.</param>
-        /// <param name="themeName">Name for the new theme</param>
-        /// <param name="colorFileName">Color file for the theme</param>
-        /// <param name="fontFileName">Font file for the theme</param>
-        /// <param name="backgroundImageName">Background image for the team</param>
-        /// <param name="masterPageName">Master page name for the theme. Only name of the master page needed, no full path to catalog</param>
-        public static void AddNewThemeOptionToWeb(this Web web, string themeName, string colorFileName, string fontFileName, string backgroundName, string masterPageName)
-        {
-            AddNewThemeOptionToWebImplementation(web, web, themeName, colorFileName, fontFileName, backgroundName, masterPageName);
-        }
-
-        /// <summary>
-        /// Add new theme option to the site.
-        /// </summary>
-        /// <param name="web">Actual site where theme is applied.</param>
-        /// <param name="themeName">Name for the new theme</param>
-        /// <param name="colorFileName">Color file for the theme</param>
-        /// <param name="fontFileName">Font file for the theme</param>
-        /// <param name="backgroundImageName">Background image for the team</param>
-        /// <param name="masterPageName">Master page name for the theme</param>
-        [Obsolete("Please use the AddNewThemeOptionToWeb method")]
-        public static void AddNewThemeOptionToSite(this Web web, string themeName, string colorFileName, string fontFileName, string backgroundName, string masterPageName)
-        {
-            AddNewThemeOptionToWebImplementation(web, web, themeName, colorFileName, fontFileName, backgroundName, masterPageName);
-        }
-
-        private static void AddNewThemeOptionToWebImplementation(this Web web, Web rootWeb, string themeName, string colorFileName, string fontFileName, string backgroundName, string masterPageName)
-        {
-            LoggingUtility.Internal.TraceInformation((int)EventId.AddThemeOption, "Adding theme option '{0}' to '{1}'", themeName, web.Context.Url);
-
-            // Let's get instance to the composite look gallery of specific site
-            List themesOverviewList = web.GetCatalog((int)ListTemplateType.DesignCatalog);
-            web.Context.Load(themesOverviewList);
-            web.Context.ExecuteQuery();
-            // Is the item already in the list?
-            if (!web.ThemeEntryExists(themeName, themesOverviewList))
-            {
-                // Let's ensure that we have root site loaded for setting URLs properly
-                Utility.EnsureWeb(rootWeb.Context, rootWeb, "ServerRelativeUrl");
-                Utility.EnsureWeb(web.Context, web, "ServerRelativeUrl");
-
-                // Let's create new theme entry. Notice that theme selection is not available from UI in personal sites, so this is just for consistency sake
+                Log.Info(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_CreateComposedLook, lookName, web.ServerRelativeUrl);
                 ListItemCreationInformation itemInfo = new ListItemCreationInformation();
-                Microsoft.SharePoint.Client.ListItem item = themesOverviewList.AddItem(itemInfo);
-                item["Name"] = themeName;
-                item["Title"] = themeName;
-                if (!string.IsNullOrEmpty(colorFileName))
-                {
-                    item["ThemeUrl"] = UrlUtility.Combine(rootWeb.ServerRelativeUrl, string.Format(Constants.THEMES_DIRECTORY, Path.GetFileName(colorFileName)));
-                }
-                if (!string.IsNullOrEmpty(fontFileName))
-                {
-                    item["FontSchemeUrl"] = UrlUtility.Combine(rootWeb.ServerRelativeUrl, string.Format(Constants.THEMES_DIRECTORY, Path.GetFileName(fontFileName)));
-                }
-                if (!string.IsNullOrEmpty(backgroundName))
-                {
-                    item["ImageUrl"] = UrlUtility.Combine(rootWeb.ServerRelativeUrl, string.Format(Constants.THEMES_DIRECTORY, Path.GetFileName(backgroundName)));
-                }
-                // we use seattle master if anything else is not set
-                if (string.IsNullOrEmpty(masterPageName))
-                {
-                    item["MasterPageUrl"] = UrlUtility.Combine(web.ServerRelativeUrl, Constants.MASTERPAGE_SEATTLE);
-                }
-                else
-                {
-                    item["MasterPageUrl"] = UrlUtility.Combine(web.ServerRelativeUrl, string.Format(Constants.MASTERPAGE_DIRECTORY, Path.GetFileName(masterPageName)));
-                }
-
-                item["DisplayOrder"] = 11;
-                item.Update();
-                web.Context.ExecuteQuery();
+                item = composedLooksList.AddItem(itemInfo);
+                item["Name"] = lookName;
+                item["Title"] = lookName;
             }
             else
             {
-                LoggingUtility.Internal.TraceWarning((int)EventId.ThemeNotOverwritten, "Theme '{0}' already exists (and was not overwritten). No changes made.", themeName);
+                if (!replaceContent)
+                {
+                    throw new Exception("Composed look already exists, replace contents needs to be specified.");
+                }
+                Log.Info(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_UpdateComposedLook, lookName, web.ServerRelativeUrl);
             }
-        }
 
-        /// <summary>
-        /// Set theme for a site. To be used with root web.
-        /// </summary>
-        /// <param name="web">Set theme for the root web of a site collection</param>
-        /// <param name="themeName">Name of the new theme</param>
-        public static void SetThemeToWeb(this Web web, string themeName)
-        {
-            SetThemeToWebImplementation(web, web, themeName);
-        }
-
-        /// <summary>
-        /// Set theme for a site. To be used with sub sites.
-        /// </summary>
-        /// <param name="web">Set theme for a sub site</param>
-        /// <param name="rootWeb">Root web, needed as the theme is stored in the root web</param>
-        /// <param name="themeName">Name of the new theme</param>
-        public static void SetThemeToSubWeb(this Web web, Web rootWeb, string themeName)
-        {
-            SetThemeToWebImplementation(web, rootWeb, themeName);
-        }
-
-        private static void SetThemeToWebImplementation(this Web web, Web rootWeb, string themeName)
-        {
-            if (rootWeb == null)
-                throw new ArgumentNullException("rootWeb");
-
-            if (string.IsNullOrEmpty(themeName))
-                throw new ArgumentNullException("themeName");
-
-            LoggingUtility.Internal.TraceInformation((int)EventId.SetTheme, "Setting theme '{0}' for '{1}'", themeName, web.Context.Url);
-
-            // Let's get instance to the composite look gallery
-            List themeList = rootWeb.GetCatalog((int)ListTemplateType.DesignCatalog);
-            rootWeb.Context.Load(themeList);
-            LoggingUtility.Internal.TraceVerbose("Getting theme list (catalog 124)");
-            rootWeb.Context.ExecuteQuery();
-
-            // Double checking that theme exists
-            if (rootWeb.ThemeEntryExists(themeName, themeList))
+            if (!string.IsNullOrEmpty(paletteServerRelativeUrl))
             {
-                // Let's update the theme name accordingly
+                item["ThemeUrl"] = paletteServerRelativeUrl;
+            }
+            if (!string.IsNullOrEmpty(fontServerRelativeUrl))
+            {
+                item["FontSchemeUrl"] = fontServerRelativeUrl;
+            }
+            if (!string.IsNullOrEmpty(backgroundServerRelativeUrl))
+            {
+                item["ImageUrl"] = backgroundServerRelativeUrl;
+            }
+            // we use seattle master if anything else is not set
+            if (string.IsNullOrEmpty(masterServerRelativeUrl))
+            {
+                item["MasterPageUrl"] = UrlUtility.Combine(web.ServerRelativeUrl, Constants.MASTERPAGE_SEATTLE);
+            }
+            else
+            {
+                item["MasterPageUrl"] = masterServerRelativeUrl;
+            }
+
+            item["DisplayOrder"] = displayOrder;
+            item.Update();
+            web.Context.ExecuteQueryRetry();
+        }
+
+        /// <summary>
+        /// Retrieves the named composed look, overrides with specified palette, font, background and master page, and then recursively sets the specified values.
+        /// </summary>
+        /// <param name="web">Web to apply composed look to</param>
+        /// <param name="lookName">Name of the composed look to apply; null will apply the override values only</param>
+        /// <param name="paletteServerRelativeUrl">Override palette file URL to use</param>
+        /// <param name="fontServerRelativeUrl">Override font file URL to use</param>
+        /// <param name="backgroundServerRelativeUrl">Override background image file URL to use</param>
+        /// <param name="masterServerRelativeUrl">Override master page file URL to use</param>
+        /// <param name="resetSubsitesToInherit">false (default) to apply to currently inheriting subsites only; true to force all subsites to inherit</param>
+        public static void SetComposedLookByUrl(this Web web, string lookName, string paletteServerRelativeUrl = null, string fontServerRelativeUrl = null, string backgroundServerRelativeUrl = null, string masterServerRelativeUrl = null, bool resetSubsitesToInherit = false, bool updateRootOnly = true)
+        {
+            var paletteUrl = default(string);
+            var fontUrl = default(string);
+            var backgroundUrl = default(string);
+            var masterUrl = default(string);
+
+            if (!string.IsNullOrWhiteSpace(lookName))
+            {
+                var composedLooksList = web.GetCatalog((int)ListTemplateType.DesignCatalog);
+
+                // Check for existing, by name
                 CamlQuery query = new CamlQuery();
-                // Find the theme by themeName
-                string camlString = string.Format(CAML_QUERY_FIND_BY_FILENAME, themeName);
-                query.ViewXml = camlString;
-                var found = themeList.GetItems(query);
-                rootWeb.Context.Load(found);
-                LoggingUtility.Internal.TraceVerbose("Getting theme: {0}", themeName);
-                rootWeb.Context.ExecuteQuery();
-                if (found.Count > 0)
+                query.ViewXml = string.Format(CAML_QUERY_FIND_BY_FILENAME, lookName);
+                var existingCollection = composedLooksList.GetItems(query);
+                web.Context.Load(existingCollection);
+                web.Context.ExecuteQueryRetry();
+                var item = existingCollection.FirstOrDefault();
+
+                if (item != null)
                 {
-                    ListItem themeEntry = found[0];
-
-                    //Set the properties for applying custom theme which was just uploaded
-                    string spColorURL = null;
-                    if (themeEntry["ThemeUrl"] != null && themeEntry["ThemeUrl"].ToString().Length > 0)
+                    var lookPaletteUrl = item["ThemeUrl"] as FieldUrlValue;
+                    if (lookPaletteUrl != null)
                     {
-                        spColorURL = UrlUtility.MakeRelativeUrl((themeEntry["ThemeUrl"] as FieldUrlValue).Url);
+                        paletteUrl = new Uri(lookPaletteUrl.Url).AbsolutePath;
                     }
-                    string spFontURL = null;
-                    if (themeEntry["FontSchemeUrl"] != null && themeEntry["FontSchemeUrl"].ToString().Length > 0)
+                    var lookFontUrl = item["FontSchemeUrl"] as FieldUrlValue;
+                    if (lookFontUrl != null)
                     {
-                        spFontURL = UrlUtility.MakeRelativeUrl((themeEntry["FontSchemeUrl"] as FieldUrlValue).Url);
+                        fontUrl = new Uri(lookFontUrl.Url).AbsolutePath;
                     }
-                    string backGroundImage = null;
-                    if (themeEntry["ImageUrl"] != null && themeEntry["ImageUrl"].ToString().Length > 0)
+                    var lookBackgroundUrl = item["ImageUrl"] as FieldUrlValue;
+                    if (lookBackgroundUrl != null)
                     {
-                        backGroundImage = UrlUtility.MakeRelativeUrl((themeEntry["ImageUrl"] as FieldUrlValue).Url);
+                        backgroundUrl = new Uri(lookBackgroundUrl.Url).AbsolutePath;
                     }
-
-                    LoggingUtility.Internal.TraceVerbose("Apply theme '{0}', '{1}', '{2}'.", spColorURL, spFontURL, backGroundImage);
-                    // Set theme for demonstration
-                    // TODO: Why is shareGenerated false? If deploying to root an inheriting, then maybe use shareGenerated = true.
-                    web.ApplyTheme(spColorURL,
-                                        spFontURL,
-                                        backGroundImage,
-                                        false);
-                    web.Context.ExecuteQuery();
-                    LoggingUtility.Internal.TraceVerbose("Theme applied");
-
-                    // Let's also update master page, if needed
-                    if (themeEntry["MasterPageUrl"] != null && themeEntry["MasterPageUrl"].ToString().Length > 0)
+                    var lookMasterUrl = item["MasterPageUrl"] as FieldUrlValue;
+                    if (lookMasterUrl != null)
                     {
-                        var masterUrl = UrlUtility.MakeRelativeUrl((themeEntry["MasterPageUrl"] as FieldUrlValue).Url);
-
-                        web.SetMasterPageForSiteByUrl(masterUrl);
-                        web.SetCustomMasterPageForSiteByUrl(masterUrl);
+                        masterUrl = new Uri(lookMasterUrl.Url).AbsolutePath;
                     }
                 }
                 else
                 {
-                    LoggingUtility.Internal.TraceError((int)EventId.ThemeMissing, "Theme '{0}' not found.", themeName);
+                    Log.Error(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_ComposedLookMissing, lookName);
+                    throw new Exception(string.Format("Composed look '{0}' can not be found; pass null or empty to set look directly (not based on an existing entry)", lookName));
                 }
             }
-            else
+
+            if (!string.IsNullOrEmpty(paletteServerRelativeUrl))
             {
-                LoggingUtility.Internal.TraceError((int)EventId.ThemeMissing, "Theme '{0}' does not exist.", themeName);
+                paletteUrl = paletteServerRelativeUrl;
+            }
+            if (!string.IsNullOrEmpty(fontServerRelativeUrl))
+            {
+                fontUrl = fontServerRelativeUrl;
+            }
+            if (!string.IsNullOrEmpty(backgroundServerRelativeUrl))
+            {
+                backgroundUrl = backgroundServerRelativeUrl;
+            }
+            if (!string.IsNullOrEmpty(masterServerRelativeUrl))
+            {
+                masterUrl = masterServerRelativeUrl;
+            }
+
+            web.SetMasterPageByUrl(masterUrl, resetSubsitesToInherit, updateRootOnly);
+            web.SetCustomMasterPageByUrl(masterUrl, resetSubsitesToInherit, updateRootOnly);
+            web.SetThemeByUrl(paletteUrl, fontUrl, backgroundUrl, resetSubsitesToInherit, updateRootOnly);
+        }
+
+        /// <summary>
+        /// Recursively applies the specified palette, font, and background image.
+        /// </summary>
+        /// <param name="web">Web to apply to</param>
+        /// <param name="paletteServerRelativeUrl">URL of palette file to apply</param>
+        /// <param name="fontServerRelativeUrl">URL of font file to apply</param>
+        /// <param name="backgroundServerRelativeUrl">URL of background image to apply</param>
+        /// <param name="resetSubsitesToInherit">false (default) to apply to currently inheriting subsites only; true to force all subsites to inherit</param>
+        /// <param name="updateRootOnly">false (default) to apply to subsites; true to only apply to specified site</param>
+        public static void SetThemeByUrl(this Web web, string paletteServerRelativeUrl, string fontServerRelativeUrl, string backgroundServerRelativeUrl, bool resetSubsitesToInherit = false, bool updateRootOnly = false)
+        {
+            var websToUpdate = new List<Web>();
+            web.Context.Load(web, w => w.AllProperties, w => w.ServerRelativeUrl);
+            web.Context.ExecuteQueryRetry();
+
+            Log.Info(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_ApplyTheme, paletteServerRelativeUrl, web.ServerRelativeUrl);
+            web.AllProperties[InheritTheme] = "False";
+            web.Update();
+            web.ApplyTheme(paletteServerRelativeUrl, fontServerRelativeUrl, backgroundServerRelativeUrl, shareGenerated: true);
+            web.Context.ExecuteQueryRetry();
+            //web.Context.Load(web, w => w.ThemedCssFolderUrl);
+            //var themedCssFolderUrl = childWeb.ThemedCssFolderUrl;
+            websToUpdate.Add(web);
+
+            if (!updateRootOnly)
+            {
+                var index = 0;
+                while (index < websToUpdate.Count)
+                {
+                    var currentWeb = websToUpdate[index];
+                    var websCollection = currentWeb.Webs;
+                    web.Context.Load(websCollection, wc => wc.Include(w => w.AllProperties, w => w.ServerRelativeUrl));
+                    web.Context.ExecuteQueryRetry();
+                    foreach (var childWeb in websCollection)
+                    {
+                        var inheritThemeProperty = childWeb.GetPropertyBagValueString(InheritTheme, "");
+                        bool inheritTheme = false;
+                        if (!string.IsNullOrEmpty(inheritThemeProperty))
+                        {
+                            inheritTheme = string.Equals(childWeb.AllProperties[InheritTheme].ToString(), "True", StringComparison.InvariantCultureIgnoreCase);
+                        }
+
+                        if (resetSubsitesToInherit || inheritTheme)
+                        {
+                            Log.Debug(Constants.LOGGING_SOURCE, "Inherited: " + CoreResources.BrandingExtension_ApplyTheme, paletteServerRelativeUrl, childWeb.ServerRelativeUrl);
+                            childWeb.AllProperties[InheritTheme] = "True";
+                            //childWeb.ThemedCssFolderUrl = themedCssFolderUrl;
+                            childWeb.Update();
+                            // TODO: CSOM does not support the ThemedCssFolderUrl property yet (Nov 2014), so must call ApplyTheme at each level.
+                            // This is very slow, so replace with simply setting the ThemedCssFolderUrl property instead once available.
+                            childWeb.ApplyTheme(paletteServerRelativeUrl, fontServerRelativeUrl, backgroundServerRelativeUrl, shareGenerated: true);
+                            web.Context.ExecuteQueryRetry();
+                            websToUpdate.Add(childWeb);
+                        }
+                    }
+                    index++;
+                }
             }
         }
 
-        //TODO: to be replaced by new site logo CSOM once we've the April 2014 CU
-        //Note: does seem to broken on the current SPO implementation (20/03/2014) as there's no _themes folder anymore in the root web
-        public static void SetSiteLogo(this Web web, string fullPathToLogo)
+
+        /// <summary>
+        /// Uploads the specified file (usually an spcolor or spfont file) to the web site themes gallery 
+        /// (usually only exists in the root web of a site collection).
+        /// </summary>
+        /// <param name="web">Web site to upload to</param>
+        /// <param name="localFilePath">Location of the file to be uploaded</param>
+        /// <param name="themeFolderVersion">Leaf folder name to upload to; default is "15"</param>
+        /// <returns>The uploaded file, with at least the ServerRelativeUrl property available</returns>
+        public static File UploadThemeFile(this Web web, string localFilePath, string themeFolderVersion = "15")
         {
-            if (string.IsNullOrEmpty(fullPathToLogo) || !System.IO.File.Exists(fullPathToLogo))
+            if (localFilePath == null) { throw new ArgumentNullException("localFilePath"); }
+            if (string.IsNullOrWhiteSpace(localFilePath)) { throw new ArgumentException("Source file path is required.", "localFilePath"); }
+
+            var fileName = Path.GetFileName(localFilePath);
+            using (var localStream = new FileStream(localFilePath, FileMode.Open))
             {
-                return;
+                return UploadThemeFile(web, fileName, localStream, themeFolderVersion);
+            }
+        }
+
+        /// <summary>
+        /// Uploads the specified file (usually an spcolor or spfont file) to the web site themes gallery 
+        /// (usually only exists in the root web of a site collection).
+        /// </summary>
+        /// <param name="web">Web site to upload to</param>
+        /// <param name="fileName">Name of the file to upload</param>
+        /// <param name="localFilePath">Location of the file to be uploaded</param>
+        /// <param name="themeFolderVersion">Leaf folder name to upload to; default is "15"</param>
+        /// <returns>The uploaded file, with at least the ServerRelativeUrl property available</returns>
+        public static File UploadThemeFile(this Web web, string fileName, string localFilePath, string themeFolderVersion = "15")
+        {
+            if (fileName == null) { throw new ArgumentNullException("fileName"); }
+            if (string.IsNullOrWhiteSpace(fileName)) { throw new ArgumentException("Destination file name is required.", "fileName"); }
+            if (localFilePath == null) { throw new ArgumentNullException("localFilePath"); }
+            if (string.IsNullOrWhiteSpace(localFilePath)) { throw new ArgumentException("Source file path is required.", "localFilePath"); }
+
+            using (var localStream = new FileStream(localFilePath, FileMode.Open))
+            {
+                return UploadThemeFile(web, fileName, localStream, themeFolderVersion);
+            }
+        }
+
+        /// <summary>
+        /// Uploads the specified file (usually an spcolor or spfont file) to the web site themes gallery 
+        /// (usually only exists in the root web of a site collection).
+        /// </summary>
+        /// <param name="web">Web site to upload to</param>
+        /// <param name="fileName">Name of the file to upload</param>
+        /// <param name="localStream">Stream containing the contents of the file</param>
+        /// <param name="themeFolderVersion">Leaf folder name to upload to; default is "15"</param>
+        /// <returns>The uploaded file, with at least the ServerRelativeUrl property available</returns>
+        public static File UploadThemeFile(this Web web, string fileName, Stream localStream, string themeFolderVersion = "15")
+        {
+            if (fileName == null) { throw new ArgumentNullException("fileName"); }
+            if (localStream == null) { throw new ArgumentNullException("localStream"); }
+            if (string.IsNullOrWhiteSpace(fileName)) { throw new ArgumentException("Destination file name is required.", "fileName"); }
+            // TODO: Check for any other illegal characters in SharePoint
+            if (fileName.Contains('/') || fileName.Contains('\\'))
+            {
+                throw new ArgumentException("The argument must be a single file name and cannot contain path characters.", "fileName");
             }
 
-            // Not natively supported, but we can update the themed site icon. If initial theme was just applied, image is at
-            // _themes/0/siteIcon-2129F729.themedpng
-            Folder rootFolder = web.RootFolder;
-            Folder themeFolder = rootFolder.ResolveSubFolder("_themes");
-            Folder themeAssetsFolder = themeFolder.ResolveSubFolder("0");
-
-            // Use CSOM to upload the file in
-            FileCreationInformation newFile = new FileCreationInformation();
-            newFile.Content = System.IO.File.ReadAllBytes(fullPathToLogo);
-            newFile.Url = themeAssetsFolder.ServerRelativeUrl + "/siteIcon-2129F729.themedpng";
-            newFile.Overwrite = true;
-            Microsoft.SharePoint.Client.File uploadFile = themeAssetsFolder.Files.Add(newFile);
-            web.Context.Load(uploadFile);
-            web.Context.ExecuteQuery();
+            // Theme catalog only exists at site collection root
+            var themesList = web.GetCatalog((int)ListTemplateType.ThemeCatalog);
+            var themesFolder = themesList.RootFolder.EnsureFolder(themeFolderVersion);
+            return themesFolder.UploadFile(fileName, localStream, true);
         }
-
-        public static void DeployFileToThemeFolderSite(this Web web, string sourceFileAddress, string themeFolderVersion = "15")
-        {
-            if (string.IsNullOrEmpty(sourceFileAddress))
-                throw new ArgumentNullException("sourceFileAddress");
-
-            if (string.IsNullOrEmpty(themeFolderVersion))
-                throw new ArgumentNullException("themeFolderVersion");
-
-            // Get the path to the file which we are about to deploy
-            var fileBytes = System.IO.File.ReadAllBytes(sourceFileAddress);
-            var fileName = Path.GetFileName(sourceFileAddress);
-
-            DeployFileToThemeFolderSite(web, fileBytes, fileName, themeFolderVersion);
-        }
-
-        public static void DeployFileToThemeFolderSite(this Web web, byte[] fileBytes, string fileName, string themeFolderVersion = "15")
-        {
-            if (fileBytes == null || fileBytes.Length == 0)
-                throw new ArgumentNullException("fileBytes");
-
-            if (string.IsNullOrEmpty(fileName))
-                throw new ArgumentNullException("fileName");
-
-            if (string.IsNullOrEmpty(themeFolderVersion))
-                throw new ArgumentNullException("themeFolderVersion");
-
-            LoggingUtility.Internal.TraceInformation((int)EventId.DeployThemeFile, "Deploying file '{0}' to '{1}' folder '{2}'.", fileName, web.Context.Url, themeFolderVersion);
-
-            // Get the path to the file which we are about to deploy
-            List themesList = web.GetCatalog((int)ListTemplateType.ThemeCatalog);
-
-            // get the theme list
-            web.Context.Load(themesList);
-            web.Context.ExecuteQuery();
-
-            Folder rootFolder = themesList.RootFolder;
-            FolderCollection rootFolders = rootFolder.Folders;
-            web.Context.Load(rootFolder);
-            web.Context.Load(rootFolders, f => f.Where(folder => folder.Name == themeFolderVersion));
-            web.Context.ExecuteQuery();
-
-            Folder folder15 = rootFolders.FirstOrDefault();
-
-            // Use CSOM to upload the file in
-            FileCreationInformation newFile = new FileCreationInformation();
-            newFile.Content = fileBytes;
-            newFile.Url = UrlUtility.Combine(folder15.ServerRelativeUrl, fileName);
-            newFile.Overwrite = true;
-
-            Microsoft.SharePoint.Client.File uploadFile = folder15.Files.Add(newFile);
-            web.Context.Load(uploadFile);
-            web.Context.ExecuteQuery();
-        }
-
-
 
         /// <summary>
         /// Can be used to deploy page layouts to master page gallery. 
@@ -424,35 +383,74 @@ namespace Microsoft.SharePoint.Client
         /// <param name="title">Title for the page layout</param>
         /// <param name="description">Description for the page layout</param>
         /// <param name="associatedContentTypeID">Associated content type ID</param>
-        public static void DeployPageLayout(this Web web, string sourceFilePath, string title, string description, string associatedContentTypeID)
+        /// <param name="folderHierarchy">Folder hierarchy where the page layouts will be deployed</param>
+        public static void DeployPageLayout(this Web web, string sourceFilePath, string title, string description, string associatedContentTypeID, string folderHierarchy = "")
+        {
+            web.DeployMasterPageGalleryItem(sourceFilePath, title, description, associatedContentTypeID, Constants.PAGE_LAYOUT_CONTENT_TYPE, folderHierarchy);
+        }
+
+        /// <summary>
+        /// Can be used to deploy html page layouts to master page gallery. 
+        /// <remarks>Should be only used with root web of site collection where publishing features are enabled.</remarks>
+        /// </summary>
+        /// <param name="web">Web as the root site of the publishing site collection</param>
+        /// <param name="sourceFilePath">Full path to the file which will be uploaded</param>
+        /// <param name="title">Title for the page layout</param>
+        /// <param name="description">Description for the page layout</param>
+        /// <param name="associatedContentTypeID">Associated content type ID</param>
+        /// <param name="folderHierarchy">Folder hierarchy where the html page layouts will be deployed</param>
+        public static void DeployHtmlPageLayout(this Web web, string sourceFilePath, string title, string description, string associatedContentTypeID, string folderHierarchy = "")
+        {
+            web.DeployMasterPageGalleryItem(sourceFilePath, title, description, associatedContentTypeID, Constants.HTMLPAGE_LAYOUT_CONTENT_TYPE, folderHierarchy);
+        }
+
+        /// <summary>
+        /// Private method to support all kinds of file uploads to the master page gallery
+        /// </summary>
+        /// <param name="web">Web as the root site of the publishing site collection</param>
+        /// <param name="sourceFilePath">Full path to the file which will be uploaded</param>
+        /// <param name="title">Title for the page layout</param>
+        /// <param name="description">Description for the page layout</param>
+        /// <param name="associatedContentTypeID">Associated content type ID</param>
+        /// <param name="itemContentTypeId">Content type id for the item.</param>
+        /// <param name="folderHierarchy">Folder hierarchy where the file will be uploaded</param>
+        private static void DeployMasterPageGalleryItem(this Web web, string sourceFilePath, string title, string description, string associatedContentTypeID, string itemContentTypeId, string folderHierarchy = "")
         {
             if (string.IsNullOrEmpty(sourceFilePath))
+            {
                 throw new ArgumentNullException("sourceFilePath");
+            }
 
             if (!System.IO.File.Exists(sourceFilePath))
+            {
                 throw new FileNotFoundException("File for param sourceFilePath file does not exist", sourceFilePath);
+            }
 
             string fileName = Path.GetFileName(sourceFilePath);
-            LoggingUtility.Internal.TraceInformation((int)EventId.DeployPageLayout, "Deploying page layout '{0}' to '{1}'.", fileName, web.Context.Url);
+            Log.Info(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_DeployPageLayout, fileName, web.Context.Url);
 
             // Get the path to the file which we are about to deploy
             List masterPageGallery = web.GetCatalog((int)ListTemplateType.MasterPageCatalog);
             Folder rootFolder = masterPageGallery.RootFolder;
             web.Context.Load(masterPageGallery);
             web.Context.Load(rootFolder);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
+
+            // Create folder structure inside master page gallery, if does not exists
+            // For e.g.: _catalogs/masterpage/contoso/
+            web.EnsureFolder(rootFolder, folderHierarchy);
 
             var fileBytes = System.IO.File.ReadAllBytes(sourceFilePath);
 
             // Use CSOM to upload the file in
             FileCreationInformation newFile = new FileCreationInformation();
             newFile.Content = fileBytes;
-            newFile.Url = UrlUtility.Combine(rootFolder.ServerRelativeUrl, fileName);
+            newFile.Url = UrlUtility.Combine(rootFolder.ServerRelativeUrl, folderHierarchy, fileName);
             newFile.Overwrite = true;
 
-            Microsoft.SharePoint.Client.File uploadFile = rootFolder.Files.Add(newFile);
+            File uploadFile = rootFolder.Files.Add(newFile);
             web.Context.Load(uploadFile);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
 
             // Check out the file if needed
             if (masterPageGallery.ForceCheckout || masterPageGallery.EnableVersioning)
@@ -470,7 +468,7 @@ namespace Microsoft.SharePoint.Client
             listItem["Title"] = title;
             listItem["MasterPageDescription"] = description;
             // set the item as page layout
-            listItem["ContentTypeId"] = Constants.PAGE_LAYOUT_CONTENT_TYPE;
+            listItem["ContentTypeId"] = itemContentTypeId;
             // Set the associated content type ID property
             listItem["PublishingAssociatedContentType"] = string.Format(";#{0};#{1};#", associatedCt.Name, associatedCt.Id);
             listItem["UIVersion"] = Convert.ToString(15);
@@ -480,13 +478,16 @@ namespace Microsoft.SharePoint.Client
             if (masterPageGallery.ForceCheckout || masterPageGallery.EnableVersioning)
             {
                 uploadFile.CheckIn(string.Empty, CheckinType.MajorCheckIn);
-                listItem.File.Publish(string.Empty);
+                if (masterPageGallery.EnableModeration)
+                {
+                    listItem.File.Publish(string.Empty);
+                }
             }
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
 
         }
 
-        public static void DeployMasterPage(this Web web, string sourceFilePath, string title, string description, string uiVersion = "15", string defaultCSSFile = "")
+        public static void DeployMasterPage(this Web web, string sourceFilePath, string title, string description, string uiVersion = "15", string defaultCSSFile = "", string folderPath = "")
         {
             if (string.IsNullOrEmpty(sourceFilePath))
                 throw new ArgumentNullException("sourceFilePath");
@@ -495,14 +496,20 @@ namespace Microsoft.SharePoint.Client
                 throw new FileNotFoundException("File for param sourceFilePath not found.", sourceFilePath);
 
             string fileName = Path.GetFileName(sourceFilePath);
-            LoggingUtility.Internal.TraceInformation((int)EventId.DeployMasterPage, "Deploying masterpage '{0}' to '{1}'.", fileName, web.Context.Url);
+            Log.Info(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_DeployMasterPage, fileName, web.Context.Url);
 
             // Get the path to the file which we are about to deploy
             List masterPageGallery = web.GetCatalog((int)ListTemplateType.MasterPageCatalog);
             Folder rootFolder = masterPageGallery.RootFolder;
             web.Context.Load(masterPageGallery);
             web.Context.Load(rootFolder);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
+
+            // Create folder if does not exists
+            if (!String.IsNullOrEmpty(folderPath))
+            {
+                web.EnsureFolder(rootFolder, folderPath);
+            }
 
             // Get the file name from the provided path
             var fileBytes = System.IO.File.ReadAllBytes(sourceFilePath);
@@ -510,12 +517,12 @@ namespace Microsoft.SharePoint.Client
             // Use CSOM to upload the file in
             FileCreationInformation newFile = new FileCreationInformation();
             newFile.Content = fileBytes;
-            newFile.Url = UrlUtility.Combine(rootFolder.ServerRelativeUrl, fileName);
+            newFile.Url = UrlUtility.Combine(rootFolder.ServerRelativeUrl, folderPath, fileName);
             newFile.Overwrite = true;
 
-            Microsoft.SharePoint.Client.File uploadFile = rootFolder.Files.Add(newFile);
+            File uploadFile = rootFolder.Files.Add(newFile);
             web.Context.Load(uploadFile);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
 
 
             var listItem = uploadFile.ListItemAllFields;
@@ -536,10 +543,13 @@ namespace Microsoft.SharePoint.Client
             if (masterPageGallery.ForceCheckout || masterPageGallery.EnableVersioning)
             {
                 uploadFile.CheckIn(string.Empty, CheckinType.MajorCheckIn);
-                listItem.File.Publish(string.Empty);
+                if (masterPageGallery.EnableModeration)
+                {
+                    listItem.File.Publish(string.Empty);
+                }
             }
             web.Context.Load(listItem);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
 
         }
 
@@ -549,22 +559,53 @@ namespace Microsoft.SharePoint.Client
         /// <param name="web"></param>
         /// <param name="masterPageName"></param>
         /// <param name="customMasterPageName"></param>
-        public static void SetMasterPagesForSiteByName(this Web web, string masterPageName, string customMasterPageName)
+        /// <exception cref="System.ArgumentException">Thrown when masterPageName or customMasterPageName is a zero-length string or contains only white space</exception>
+        /// <exception cref="System.ArgumentNullException">Thrown when masterPageName or customMasterPageName is null</exception>
+        public static void SetMasterPagesByName(this Web web, string masterPageName, string customMasterPageName)
         {
-            web.SetMasterPageForSiteByName(masterPageName);
-            web.SetCustomMasterPageForSiteByName(customMasterPageName);
+            if (string.IsNullOrEmpty(masterPageName))
+            {
+                throw (masterPageName == null)
+                  ? new ArgumentNullException("masterPageName")
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "masterPageName");
+            }
+            if (string.IsNullOrEmpty(customMasterPageName))
+            {
+                throw (customMasterPageName == null)
+                  ? new ArgumentNullException("customMasterPageName")
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "customMasterPageName");
+            }
+
+            web.SetMasterPageByName(masterPageName);
+            web.SetCustomMasterPageByName(customMasterPageName);
         }
+
 
         /// <summary>
         /// Can be used to set master page and custom master page in single command
         /// </summary>
         /// <param name="web"></param>
-        /// <param name="masterPageName"></param>
-        /// <param name="customMasterPageName"></param>
-        public static void SetMasterPagesForSiteByUrl(this Web web, string masterPageName, string customMasterPageName)
+        /// <param name="masterPageUrl"></param>
+        /// <param name="customMasterPageUrl"></param>
+        /// <exception cref="System.ArgumentException">Thrown when masterPageName or customMasterPageName is a zero-length string or contains only white space</exception>
+        /// <exception cref="System.ArgumentNullException">Thrown when masterPageName or customMasterPageName is null</exception>
+        public static void SetMasterPagesByUrl(this Web web, string masterPageUrl, string customMasterPageUrl)
         {
-            web.SetMasterPageForSiteByUrl(masterPageName);
-            web.SetCustomMasterPageForSiteByUrl(customMasterPageName);
+            if (string.IsNullOrEmpty(masterPageUrl))
+            {
+                throw (masterPageUrl == null)
+                  ? new ArgumentNullException("masterPageUrl")
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "masterPageUrl");
+            }
+            if (string.IsNullOrEmpty(customMasterPageUrl))
+            {
+                throw (customMasterPageUrl == null)
+                  ? new ArgumentNullException("customMasterPageUrl")
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "customMasterPageUrl");
+            }
+
+            web.SetMasterPageByUrl(masterPageUrl);
+            web.SetCustomMasterPageByUrl(customMasterPageUrl);
         }
 
         /// <summary>
@@ -572,30 +613,49 @@ namespace Microsoft.SharePoint.Client
         /// </summary>
         /// <param name="web">Current web</param>
         /// <param name="masterPageName">Name of the master page. Path is resolved from this.</param>
-        public static void SetMasterPageForSiteByName(this Web web, string masterPageName)
+        /// <exception cref="System.ArgumentException">Thrown when masterPageName is a zero-length string or contains only white space</exception>
+        /// <exception cref="System.ArgumentNullException">Thrown when masterPageName is null</exception>  
+        public static void SetMasterPageByName(this Web web, string masterPageName)
         {
+            if (string.IsNullOrEmpty(masterPageName))
+            {
+                throw (masterPageName == null)
+                  ? new ArgumentNullException("masterPageName")
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "masterPageName");
+            }
             string masterPageUrl = GetRelativeUrlForMasterByName(web, masterPageName);
             if (!string.IsNullOrEmpty(masterPageUrl))
             {
-                SetMasterPageForSiteByUrl(web, masterPageUrl);
+                SetMasterPageByUrl(web, masterPageUrl);
             }
-
         }
+
 
         /// <summary>
         /// Master page is set by using master page name. Master page is set from the current web.
         /// </summary>
         /// <param name="web">Current web</param>
         /// <param name="masterPageName">Name of the master page. Path is resolved from this.</param>
-        public static void SetCustomMasterPageForSiteByName(this Web web, string masterPageName)
+        /// <exception cref="System.ArgumentException">Thrown when masterPageName is a zero-length string or contains only white space</exception>
+        /// <exception cref="System.ArgumentNullException">Thrown when masterPageName is null</exception>  
+        public static void SetCustomMasterPageByName(this Web web, string masterPageName)
         {
+            if (string.IsNullOrEmpty(masterPageName))
+            {
+                throw (masterPageName == null)
+                  ? new ArgumentNullException("masterPageName")
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "masterPageName");
+            }
+
             string masterPageUrl = GetRelativeUrlForMasterByName(web, masterPageName);
             if (!string.IsNullOrEmpty(masterPageUrl))
             {
-                SetCustomMasterPageForSiteByUrl(web, masterPageUrl);
+                SetCustomMasterPageByUrl(web, masterPageUrl);
             }
         }
 
+        [SuppressMessage("Microsoft.Globalization", "CA1308:NormalizeStringsToUppercase",
+            Justification = "URLs are commonly standardised to lower case.")]
         public static string GetRelativeUrlForMasterByName(this Web web, string masterPageName)
         {
             if (string.IsNullOrEmpty(masterPageName))
@@ -603,11 +663,12 @@ namespace Microsoft.SharePoint.Client
 
             List masterPageGallery = web.GetCatalog((int)ListTemplateType.MasterPageCatalog);
             CamlQuery query = new CamlQuery();
-            query.ViewXml = "<View><Query><Where><Contains><FieldRef Name='FileRef'/><Value Type='Text'>.master</Value></Contains></Where></Query></View>";
+            // Use query Scope='RecursiveAll' to iterate through sub folders of Master page library because we might have file in folder hierarchy
+            query.ViewXml = "<View Scope='RecursiveAll'><Query><Where><Contains><FieldRef Name='FileRef'/><Value Type='Text'>.master</Value></Contains></Where></Query></View>";
             ListItemCollection galleryItems = masterPageGallery.GetItems(query);
             web.Context.Load(masterPageGallery);
             web.Context.Load(galleryItems);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
             foreach (var item in galleryItems)
             {
                 var fileRef = item["FileRef"].ToString();
@@ -619,62 +680,209 @@ namespace Microsoft.SharePoint.Client
             return string.Empty;
         }
 
+        /// <summary>
+        /// Returns the current theme of a web
+        /// </summary>
+        /// <param name="web">Web to check</param>
+        /// <returns>Entity with attributes of current composed look, or null if none</returns>
+        public static ThemeEntity GetCurrentComposedLook(this Web web)
+        {
+            return GetComposedLook(web, CurrentLookName);
+        }
+
+        /// <summary>
+        /// Returns the named composed look from the web gallery
+        /// </summary>
+        /// <param name="web">Web to check</param>
+        /// <param name="composedLookName">Name of the composed look to retrieve</param>
+        /// <returns>Entity with the attributes of the composed look, or null if it does not exist</returns>
+        public static ThemeEntity GetComposedLook(this Web web, string composedLookName)
+        {
+            ThemeEntity theme = null;
+
+            List designCatalog = web.GetCatalog((int)ListTemplateType.DesignCatalog);
+            const string camlString = @"
+            <View>  
+                <Query> 
+                    <Where><Eq><FieldRef Name='Name' /><Value Type='Text'>{0}</Value></Eq></Where> 
+                </Query> 
+                <ViewFields>
+                    <FieldRef Name='ImageUrl' />
+                    <FieldRef Name='MasterPageUrl' />
+                    <FieldRef Name='FontSchemeUrl' />
+                    <FieldRef Name='ThemeUrl' />
+                </ViewFields> 
+            </View>";
+
+            CamlQuery camlQuery = new CamlQuery();
+            camlQuery.ViewXml = string.Format(camlString, composedLookName);
+
+            ListItemCollection themes = designCatalog.GetItems(camlQuery);
+            web.Context.Load(themes);
+            web.Context.ExecuteQueryRetry();
+            if (themes.Count > 0)
+            {
+                var themeItem = themes[0];
+                theme = new ThemeEntity();
+                if (themeItem["ThemeUrl"] != null && themeItem["ThemeUrl"].ToString().Length > 0)
+                {
+                    theme.Theme = (themeItem["ThemeUrl"] as FieldUrlValue).Url;
+                }
+                if (themeItem["MasterPageUrl"] != null && themeItem["MasterPageUrl"].ToString().Length > 0)
+                {
+                    theme.MasterPage = (themeItem["MasterPageUrl"] as FieldUrlValue).Url;
+                }
+                if (themeItem["FontSchemeUrl"] != null && themeItem["FontSchemeUrl"].ToString().Length > 0)
+                {
+                    theme.Font = (themeItem["FontSchemeUrl"] as FieldUrlValue).Url;
+                }
+                if (themeItem["ImageUrl"] != null && themeItem["ImageUrl"].ToString().Length > 0)
+                {
+                    theme.BackgroundImage = (themeItem["ImageUrl"] as FieldUrlValue).Url;
+                }
+            }
+
+            return theme;
+        }
+
+        /// <summary>
+        /// Gets a page layout from the master page catalog
+        /// </summary>
+        /// <param name="web">root web</param>
+        /// <param name="pageLayoutName">name of the page layout to retrieve</param>
+        /// <returns>ListItem holding the page layout, null if not found</returns>
         public static ListItem GetPageLayoutListItemByName(this Web web, string pageLayoutName)
         {
             if (string.IsNullOrEmpty(pageLayoutName))
+            {
                 throw new ArgumentNullException("pageLayoutName");
+            }
 
-            List masterPageGallery = web.GetCatalog((int)ListTemplateType.MasterPageCatalog);
-            CamlQuery query = new CamlQuery();
-            query.ViewXml = "<View><Query><Where><Contains><FieldRef Name='FileRef'/><Value Type='Text'>.aspx</Value></Contains></Where></Query></View>";
-            ListItemCollection galleryItems = masterPageGallery.GetItems(query);
+            var masterPageGallery = web.GetCatalog((int)ListTemplateType.MasterPageCatalog);
+            web.Context.Load(masterPageGallery, x => x.RootFolder.ServerRelativeUrl);
+            web.Context.ExecuteQueryRetry();
+
+            var fileRefValue = string.Format("{0}/{1}{2}", masterPageGallery.RootFolder.ServerRelativeUrl, pageLayoutName, ".aspx");
+            var query = new CamlQuery();
+            // Use query Scope='RecursiveAll' to iterate through sub folders of Master page library because we might have file in folder hierarchy
+            query.ViewXml = string.Format("<View Scope='RecursiveAll'><Query><Where><Eq><FieldRef Name='FileRef'/><Value Type='Text'>{0}</Value></Eq></Where></Query></View>", fileRefValue);
+            var galleryItems = masterPageGallery.GetItems(query);
             web.Context.Load(masterPageGallery);
             web.Context.Load(galleryItems);
-            web.Context.ExecuteQuery();
-            foreach (var item in galleryItems)
-            {
-                var fileRef = item["FileRef"].ToString().ToUpperInvariant();
-                if (fileRef.Contains(pageLayoutName.ToUpperInvariant()))
-                {
-                    return item;
-                }
-            }
-            return null;
+            web.Context.ExecuteQueryRetry();
+            return galleryItems.Count > 0 ? galleryItems[0] : null;
         }
-
 
         /// <summary>
         /// Set master page by using given URL as parameter. Suitable for example in cases where you want sub sites to reference root site master page gallery. This is typical with publishing sites.
         /// </summary>
         /// <param name="web">Context web</param>
-        /// <param name="masterPageName">URL to the master page.</param>
-        public static void SetMasterPageForSiteByUrl(this Web web, string masterPageUrl)
+        /// <param name="masterPageServerRelativeUrl">URL to the master page.</param>
+        /// <param name="resetSubsitesToInherit">false (default) to apply to currently inheriting subsites only; true to force all subsites to inherit</param>
+        /// <param name="updateRootOnly">false (default) to apply to subsites; true to only apply to specified site</param>
+        public static void SetMasterPageByUrl(this Web web, string masterPageServerRelativeUrl, bool resetSubsitesToInherit = false, bool updateRootOnly = false)
         {
-            if (string.IsNullOrEmpty(masterPageUrl))
-                throw new ArgumentNullException("masterPageUrl");
+            if (string.IsNullOrEmpty(masterPageServerRelativeUrl)) { throw new ArgumentNullException("masterPageServerRelativeUrl"); }
 
-            LoggingUtility.Internal.TraceInformation((int)EventId.SetMasterUrl, "Setting master URL '{0}' to '{1}'.", masterPageUrl, web.Context.Url);
+            var websToUpdate = new List<Web>();
+            web.Context.Load(web, w => w.AllProperties, w => w.ServerRelativeUrl);
+            web.Context.ExecuteQueryRetry();
 
-            web.MasterUrl = masterPageUrl;
+            Log.Info(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_SetMasterUrl, masterPageServerRelativeUrl, web.ServerRelativeUrl);
+            web.AllProperties[InheritMaster] = "False";
+            web.MasterUrl = masterPageServerRelativeUrl;
             web.Update();
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
+            websToUpdate.Add(web);
+
+            if (!updateRootOnly)
+            {
+                var index = 0;
+                while (index < websToUpdate.Count)
+                {
+                    var currentWeb = websToUpdate[index];
+                    var websCollection = currentWeb.Webs;
+                    web.Context.Load(websCollection, wc => wc.Include(w => w.AllProperties, w => w.ServerRelativeUrl));
+                    web.Context.ExecuteQueryRetry();
+                    foreach (var childWeb in websCollection)
+                    {
+
+                        var inheritThemeProperty = childWeb.GetPropertyBagValueString(InheritTheme, "");
+                        bool inheritTheme = false;
+                        if (!string.IsNullOrEmpty(inheritThemeProperty))
+                        {
+                            inheritTheme = string.Equals(childWeb.AllProperties[InheritTheme].ToString(), "True", StringComparison.InvariantCultureIgnoreCase);
+                        }
+
+                        if (resetSubsitesToInherit || inheritTheme)
+                        {
+                            Log.Debug(Constants.LOGGING_SOURCE, "Inherited: " + CoreResources.BrandingExtension_SetMasterUrl, masterPageServerRelativeUrl, childWeb.ServerRelativeUrl);
+                            childWeb.AllProperties[InheritMaster] = "True";
+                            childWeb.MasterUrl = masterPageServerRelativeUrl;
+                            childWeb.Update();
+                            web.Context.ExecuteQueryRetry();
+                            websToUpdate.Add(childWeb);
+                        }
+                    }
+                    index++;
+                }
+            }
         }
 
         /// <summary>
         /// Set Custom master page by using given URL as parameter. Suitable for example in cases where you want sub sites to reference root site master page gallery. This is typical with publishing sites.
         /// </summary>
         /// <param name="web">Context web</param>
-        /// <param name="masterPageName">URL to the master page.</param>
-        public static void SetCustomMasterPageForSiteByUrl(this Web web, string masterPageUrl)
+        /// <param name="masterPageServerRelativeUrl">URL to the master page.</param>
+        /// <param name="resetSubsitesToInherit">false (default) to apply to currently inheriting subsites only; true to force all subsites to inherit</param>
+        /// <param name="updateRootOnly">false (default) to apply to subsites; true to only apply to specified site</param>
+        public static void SetCustomMasterPageByUrl(this Web web, string masterPageServerRelativeUrl, bool resetSubsitesToInherit = false, bool updateRootOnly = false)
         {
-            if (string.IsNullOrEmpty(masterPageUrl))
-                throw new ArgumentNullException("masterPageUrl");
+            if (string.IsNullOrEmpty(masterPageServerRelativeUrl)) { throw new ArgumentNullException("masterPageServerRelativeUrl"); }
 
-            LoggingUtility.Internal.TraceInformation((int)EventId.SetCustomMasterUrl, "Setting custom master URL '{0}' to '{1}'.", masterPageUrl, web.Context.Url);
+            var websToUpdate = new List<Web>();
+            web.Context.Load(web, w => w.AllProperties, w => w.ServerRelativeUrl);
+            web.Context.ExecuteQueryRetry();
 
-            web.CustomMasterUrl = masterPageUrl;
+            Log.Info(Constants.LOGGING_SOURCE, CoreResources.BrandingExtension_SetCustomMasterUrl, masterPageServerRelativeUrl, web.ServerRelativeUrl);
+            web.AllProperties[InheritMaster] = "False";
+            web.CustomMasterUrl = masterPageServerRelativeUrl;
             web.Update();
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
+            websToUpdate.Add(web);
+
+            if (!updateRootOnly)
+            {
+                var index = 0;
+                while (index < websToUpdate.Count)
+                {
+                    var currentWeb = websToUpdate[index];
+                    var websCollection = currentWeb.Webs;
+                    web.Context.Load(websCollection, wc => wc.Include(w => w.AllProperties, w => w.ServerRelativeUrl));
+                    web.Context.ExecuteQueryRetry();
+                    foreach (var childWeb in websCollection)
+                    {
+                        var inheritThemeProperty = childWeb.GetPropertyBagValueString(InheritTheme, "");
+                        bool inheritTheme = false;
+                        if (!string.IsNullOrEmpty(inheritThemeProperty))
+                        {
+                            inheritTheme = string.Equals(childWeb.AllProperties[InheritTheme].ToString(), "True", StringComparison.InvariantCultureIgnoreCase);
+                        }
+
+                        if (resetSubsitesToInherit || inheritTheme)
+                        {
+                            Log.Debug(Constants.LOGGING_SOURCE, "Inherited: " + CoreResources.BrandingExtension_SetCustomMasterUrl, masterPageServerRelativeUrl, childWeb.ServerRelativeUrl);
+                            childWeb.AllProperties[InheritMaster] = "True";
+                            childWeb.CustomMasterUrl = masterPageServerRelativeUrl;
+                            childWeb.Update();
+                            web.Context.ExecuteQueryRetry();
+                            websToUpdate.Add(childWeb);
+                        }
+                    }
+                    index++;
+                }
+            }
+
         }
 
         /// <summary>
@@ -725,11 +933,6 @@ namespace Microsoft.SharePoint.Client
             return xmlNode;
         }
 
-        [Obsolete("Use SolveSiteRelativeUrl")]
-        private static string SolveSiteRelateveUrl(Web web, string url)
-        {
-            return SolveSiteRelativeUrl(web, url);
-        }
         private static string SolveSiteRelativeUrl(Web web, string url)
         {
             if (web == null)
@@ -750,21 +953,20 @@ namespace Microsoft.SharePoint.Client
         /// <summary>
         /// Can be used to set the site to inherit the default page layout option from parent. Cannot be used for root site of the site collection
         /// </summary>
-        /// <param name="web"></param>
+        /// <param name="web">Web to operate against</param>
         public static void SetSiteToInheritPageLayouts(this Web web)
         {
             web.SetPropertyBagValue(DefaultPageLayout, Inherit);
         }
 
         /// <summary>
-        /// Can be used to remote filters from the available page layouts
+        /// Allow the web to use all available page layouts
         /// </summary>
-        /// <param name="web"></param>
-        public static void ClearAvailablePageLayouts(this Web web)
+        /// <param name="web">Web to operate against</param>
+        public static void AllowAllPageLayouts(this Web web)
         {
-            web.SetPropertyBagValue(AvailablePageLayouts, "");
+            web.SetPropertyBagValue(AvailablePageLayouts, string.Empty);
         }
-
 
         public static void SetAvailablePageLayouts(this Web web, Web rootWeb, IEnumerable<string> pageLayouts)
         {
@@ -779,6 +981,11 @@ namespace Microsoft.SharePoint.Client
             web.SetPropertyBagValue(AvailablePageLayouts, xmlNode.OuterXml);
         }
 
+        /// <summary>
+        /// Defines which templates are available for subsite creation
+        /// </summary>
+        /// <param name="web">Web to operate against</param>
+        /// <param name="availableTemplates">List of <see cref="WebTemplateEntity"/> objects that define the templates that are allowed</param>
         public static void SetAvailableWebTemplates(this Web web, List<WebTemplateEntity> availableTemplates)
         {
             string propertyValue = string.Empty;
@@ -846,19 +1053,16 @@ namespace Microsoft.SharePoint.Client
         }
 
         /// <summary>
-        /// 
+        /// Sets the web home page
         /// </summary>
         /// <param name="web">The Web to process</param>
         /// <param name="rootFolderRelativePath">The path relative to the root folder of the site, e.g. SitePages/Home.aspx</param>
         public static void SetHomePage(this Web web, string rootFolderRelativePath)
         {
             Folder folder = web.RootFolder;
-
             folder.WelcomePage = rootFolderRelativePath;
-
             folder.Update();
-
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
         }
 
 

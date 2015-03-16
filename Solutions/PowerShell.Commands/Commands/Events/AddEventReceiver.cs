@@ -1,14 +1,19 @@
 ﻿using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
 using Microsoft.SharePoint.Client;
 using System.Management.Automation;
+using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
     [Cmdlet(VerbsCommon.Add, "SPOEventReceiver")]
+    [CmdletHelp("Adds a new event receiver")]
+    [CmdletExample(
+      Code = @"PS:> Add-SPOEventReceiver -List ""ProjectList"" -Name ""TestEventReceiver"" -Url https://yourserver.azurewebsites.net/eventreceiver.svc -EventReceiverType ItemAdded -Synchronization Asynchronous",
+      Remarks = @"This will add a new event receiver that is executed after an item has been added to the ProjectList list", SortOrder = 1)]
     public class AddEventReceiver : SPOWebCmdlet
     {
         [Parameter(Mandatory = true, ParameterSetName = "List")]
-        public SPOListPipeBind List;
+        public ListPipeBind List;
 
         [Parameter(Mandatory = true)]
         public string Name;
@@ -25,19 +30,21 @@ namespace OfficeDevPnP.PowerShell.Commands
         public EventReceiverSynchronization Synchronization;
 
         [Parameter(Mandatory = false)]
+        public int SequenceNumber = 1000;
+
+        [Parameter(Mandatory = false)]
         public SwitchParameter Force;
 
         protected override void ExecuteCmdlet()
         {
             if (ParameterSetName == "List")
             {
-                var list = this.SelectedWeb.GetList(List);
-                WriteObject(list.AddRemoteEventReceiver(Name, Url, EventReceiverType, Synchronization, Force));
+                var list = SelectedWeb.GetList(List);
+                WriteObject(list.AddRemoteEventReceiver(Name, Url, EventReceiverType, Synchronization, SequenceNumber, Force));
             }
             else
             {
-                Microsoft.SharePoint.Client.Web web = SelectedWeb;
-                WriteObject(this.SelectedWeb.AddRemoteEventReceiver(Name, Url, EventReceiverType, Synchronization, Force));
+                WriteObject(SelectedWeb.AddRemoteEventReceiver(Name, Url, EventReceiverType, Synchronization, SequenceNumber, Force));
             }
 
         }

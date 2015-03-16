@@ -9,16 +9,16 @@ namespace OfficeDevPnP.PowerShell.Commands
     public class GetField : SPOWebCmdlet
     {
         [Parameter(Mandatory = false, ValueFromPipeline = true)]
-        public SPOListPipeBind List;
+        public ListPipeBind List;
 
-        [Parameter(Mandatory = false)]
-        public SPOFieldIdPipeBind Identity = new SPOFieldIdPipeBind();
+        [Parameter(Mandatory = false, Position=0, ValueFromPipeline=true)]
+        public FieldPipeBind Identity = new FieldPipeBind();
 
         protected override void ExecuteCmdlet()
         {
             if (List != null)
             {
-                var list = this.SelectedWeb.GetList(List);
+                var list = SelectedWeb.GetList(List);
 
                 Field f = null;
                 FieldCollection c = null;
@@ -36,13 +36,13 @@ namespace OfficeDevPnP.PowerShell.Commands
                     {
                         c = list.Fields;
                         ClientContext.Load(c);
-                        ClientContext.ExecuteQuery();
+                        ClientContext.ExecuteQueryRetry();
                     }
                 }
                 if (f != null)
                 {
                     ClientContext.Load(f);
-                    ClientContext.ExecuteQuery();
+                    ClientContext.ExecuteQueryRetry();
                     WriteObject(f);
                 }
                 else if (c != null)
@@ -57,28 +57,28 @@ namespace OfficeDevPnP.PowerShell.Commands
             }
             else
             {
-            
+
                 // Get a site column
                 if (Identity.Id == Guid.Empty && string.IsNullOrEmpty(Identity.Name))
                 {
                     // Get all columns
-                    ClientContext.Load(this.SelectedWeb.Fields);
-                    ClientContext.ExecuteQuery();
-                    WriteObject(this.SelectedWeb.Fields, true);
+                    ClientContext.Load(SelectedWeb.Fields);
+                    ClientContext.ExecuteQueryRetry();
+                    WriteObject(SelectedWeb.Fields, true);
                 }
                 else
                 {
                     Field f = null;
                     if (Identity.Id != Guid.Empty)
                     {
-                        f = this.SelectedWeb.Fields.GetById(Identity.Id);
+                        f = SelectedWeb.Fields.GetById(Identity.Id);
                     }
                     else if (!string.IsNullOrEmpty(Identity.Name))
                     {
-                        f = this.SelectedWeb.Fields.GetByInternalNameOrTitle(Identity.Name);
+                        f = SelectedWeb.Fields.GetByInternalNameOrTitle(Identity.Name);
                     }
                     ClientContext.Load(f);
-                    ClientContext.ExecuteQuery();
+                    ClientContext.ExecuteQueryRetry();
                     WriteObject(f);
                 }
             }

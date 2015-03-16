@@ -1,18 +1,15 @@
-﻿using Microsoft.SharePoint.Client;
-using Microsoft.SharePoint.Client.InformationPolicy;
-using OfficeDevPnP.Core.Entities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.SharePoint.Client.InformationPolicy;
+using OfficeDevPnP.Core.Entities;
 
 namespace Microsoft.SharePoint.Client {
 
     /// <summary>
     /// Class that deals with information management features
     /// </summary>
-    public static class InformationManagementExtensions
+    public static partial class InformationManagementExtensions
     {
 
         /// <summary>
@@ -23,7 +20,7 @@ namespace Microsoft.SharePoint.Client {
         public static bool HasSitePolicyApplied(this Web web)
         {
             ClientResult<bool> hasSitePolicyApplied = ProjectPolicy.DoesProjectHavePolicy(web.Context, web);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
             return hasSitePolicyApplied.Value;
         }
 
@@ -37,7 +34,7 @@ namespace Microsoft.SharePoint.Client {
             if (web.HasSitePolicyApplied())
             {
                 ClientResult<DateTime> expirationDate = ProjectPolicy.GetProjectExpirationDate(web.Context, web);
-                web.Context.ExecuteQuery();
+                web.Context.ExecuteQueryRetry();
                 return expirationDate.Value;
             }
             else
@@ -56,7 +53,7 @@ namespace Microsoft.SharePoint.Client {
             if (web.HasSitePolicyApplied())
             {
                 ClientResult<DateTime> closeDate = ProjectPolicy.GetProjectCloseDate(web.Context, web);
-                web.Context.ExecuteQuery();
+                web.Context.ExecuteQueryRetry();
                 return closeDate.Value;
             }
             else
@@ -74,7 +71,7 @@ namespace Microsoft.SharePoint.Client {
         {
             ClientObjectList<ProjectPolicy> sitePolicies = ProjectPolicy.GetProjectPolicies(web.Context, web);
             web.Context.Load(sitePolicies);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
 
             List<SitePolicyEntity> policies = new List<SitePolicyEntity>();
 
@@ -112,7 +109,7 @@ namespace Microsoft.SharePoint.Client {
                              p => p.EmailSubject,
                              p => p.EmailBody,
                              p => p.EmailBodyWithTeamMailbox);
-                web.Context.ExecuteQuery();
+                web.Context.ExecuteQueryRetry();
                 return new SitePolicyEntity
                     {
                         Name = policy.Name,
@@ -140,7 +137,7 @@ namespace Microsoft.SharePoint.Client {
 
             if (policies.Count > 0)
             {
-                SitePolicyEntity policy = policies.Where(p => p.Name == sitePolicy).FirstOrDefault();
+                SitePolicyEntity policy = policies.FirstOrDefault(p => p.Name == sitePolicy);
                 return policy;
             }
             else
@@ -161,83 +158,22 @@ namespace Microsoft.SharePoint.Client {
             
             ClientObjectList<ProjectPolicy> sitePolicies = ProjectPolicy.GetProjectPolicies(web.Context, web);
             web.Context.Load(sitePolicies);
-            web.Context.ExecuteQuery();
+            web.Context.ExecuteQueryRetry();
 
             if (sitePolicies != null && sitePolicies.Count > 0)
             {
-                ProjectPolicy policyToApply = sitePolicies.Where(p => p.Name == sitePolicy).FirstOrDefault();
+                ProjectPolicy policyToApply = sitePolicies.FirstOrDefault(p => p.Name == sitePolicy);
                                 
                 if (policyToApply != null)
                 {
                     ProjectPolicy.ApplyProjectPolicy(web.Context, web, policyToApply);
-                    web.Context.ExecuteQuery();
+                    web.Context.ExecuteQueryRetry();
                     result = true;
                 }
             }
 
             return result;
         }
-
-        #region Experimental, not ready
-        //Note: this does not work and will break the site policy stuff in your site...do not yet use it!
-        //public static void CreateNewSitePolicy(this Web web, string sitePolicy)
-        //{
-        //    ContentTypeCollection contentTypes = web.ContentTypes;
-        //    web.Context.Load(contentTypes);
-        //    web.Context.ExecuteQuery();
-
-        //    ContentType parentContentType = null;
-        //    foreach (ContentType ct in contentTypes)
-        //    {
-        //        if (ct.Id.StringValue.Equals("0x010085EC78BE64F9478aAE3ED069093B9963", StringComparison.InvariantCultureIgnoreCase))
-        //        {
-        //            parentContentType = ct;
-        //            break;
-        //        }
-        //    }
-
-        //    if (parentContentType != null)
-        //    {
-        //        // Specifies properties that are used as parameters to initialize a new content type.
-        //        ContentTypeCreationInformation contentTypeCreation = new ContentTypeCreationInformation();
-        //        contentTypeCreation.Name = sitePolicy;
-        //        contentTypeCreation.Description = "";
-        //        contentTypeCreation.Group = parentContentType.Group;
-        //        contentTypeCreation.ParentContentType = parentContentType;
-
-        //        ContentType newPolicyContentType = contentTypes.Add(contentTypeCreation);
-        //        web.Context.ExecuteQuery();
-
-                
-        //    }
-        //
-        ////cleanup code for when above method goes wrong    
-        ////ContentTypeCollection contentTypes = cc.Web.ContentTypes;
-        ////cc.Load(contentTypes);
-        ////cc.ExecuteQuery();
-
-        ////foreach (ContentType ct in contentTypes)
-        ////{
-        ////    cc.Load(ct.Parent);
-        ////    cc.ExecuteQuery();
-        ////    if (ct.Parent.Id.StringValue.Equals("0x010085EC78BE64F9478aAE3ED069093B9963", StringComparison.InvariantCultureIgnoreCase))
-        ////    {
-
-        ////        cc.Load(ct.Fields);
-        ////        cc.ExecuteQuery();    
-
-        ////        if (ct.Name.Equals("hello world", StringComparison.InvariantCultureIgnoreCase))
-        ////        {
-        ////            ct.DeleteObject();
-        ////            cc.ExecuteQuery();
-        ////        }
-        ////    }
-        ////}
-        //}
-        #endregion
-
-
-
 
     }
 }

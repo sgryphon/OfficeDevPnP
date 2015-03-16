@@ -1,51 +1,46 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
-using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
+﻿using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
 using Microsoft.SharePoint.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Management.Automation;
-using System.Text;
-using System.Threading.Tasks;
-using System.Reflection;
-using OfficeDevPnP.PowerShell.Commands.Entities;
+using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
     [Cmdlet(VerbsCommon.Get, "SPOContentType")]
+    [CmdletHelp("Retrieves a content type")]
+    [CmdletExample(
+     Code = @"PS:> Get-SPOContentType -Identity ""Project Document""",
+     Remarks = @"This will add an existing content type to a list and sets it as the default content type", SortOrder = 1)]
     public class GetContentType : SPOWebCmdlet
     {
-        [Parameter(Mandatory = false)]
-        public SPOContentTypePipeBind Identity;
+        [Parameter(Mandatory = false, Position=0, ValueFromPipeline=true, HelpMessage="Name or ID of the content type to retrieve")]
+        public ContentTypePipeBind Identity;
 
         protected override void ExecuteCmdlet()
         {
 
             if (Identity != null)
             {
-                ContentType ct = null;
+                ContentType ct;
                 if (!string.IsNullOrEmpty(Identity.Id))
                 {
-                    ct = this.SelectedWeb.GetContentTypeById(Identity.Id);
+                    ct = SelectedWeb.GetContentTypeById(Identity.Id);
                 }
                 else
                 {
-                    ct = this.SelectedWeb.GetContentTypeByName(Identity.Name);
+                    ct = SelectedWeb.GetContentTypeByName(Identity.Name);
                 }
                 if (ct != null)
                 {
 
-                    WriteObject(new ContentTypeEntity(ct));
+                    WriteObject(ct);
                 }
             }
             else
             {
-                List<ContentType> cts = new List<ContentType>();
-                ClientContext.Load(this.SelectedWeb.ContentTypes);
-                ClientContext.ExecuteQuery();
-
-                var spocts = from ct in this.SelectedWeb.ContentTypes select new ContentTypeEntity(ct);
-                WriteObject(spocts, true);
+                var cts = ClientContext.LoadQuery(SelectedWeb.ContentTypes);
+                ClientContext.ExecuteQueryRetry();
+    
+                WriteObject(cts, true);
             }
         }
     }

@@ -6,11 +6,15 @@ using System.Web.UI;
 using System.Web.UI.WebControls;
 using Microsoft.SharePoint.Client;
 using Microsoft.SharePoint.Client.Taxonomy;
+using OfficeDevPnP.Core.Entities;
 
 namespace Core.ContentTypesAndFieldsWeb.Pages
 {
     public partial class Scenario2 : System.Web.UI.Page
     {
+        static readonly Guid SampleGroupId = new Guid("{616ABD6F-2A9E-46AA-AA6B-EE2B67257DCC}");
+        static readonly Guid SampleTermSetId = new Guid("{47CDC099-C0EF-4043-9C4A-D4BAAA9B5482}");
+
         protected void Page_Load(object sender, EventArgs e)
         {
             // define initial script, needed to render the chrome control
@@ -45,6 +49,7 @@ namespace Core.ContentTypesAndFieldsWeb.Pages
         {
             // Taxonomy field to host web - Note that this requires that group and taxonomy set exists when the code is executed.
             var spContext = SharePointContextProvider.Current.GetSharePointContext(Context);
+            // Notice that you can assign the guid if needed - in here we randomize it for demo purposes
             var taxFieldId = Guid.NewGuid();
 
             using (var ctx = spContext.CreateUserClientContextForSPHost())
@@ -55,8 +60,25 @@ namespace Core.ContentTypesAndFieldsWeb.Pages
 
                 if (!ctx.Web.FieldExistsByName(taxFieldName))
                 {
-                    ctx.Web.CreateTaxonomyField(taxFieldId, taxFieldName, "Contoso Taxonomy Sample", "Contoso Fields", groupName, termSetName);
-                    lblStatus2.Text = "Created new taxonomy field with name of 'Contoso Taxonomy Sample'. Move to host web and test the functionality.";
+                    // Get access to the right term set
+                    TaxonomySession taxonomySession = TaxonomySession.GetTaxonomySession(ctx.Web.Context);
+                    TermStore termStore = taxonomySession.GetDefaultSiteCollectionTermStore();
+                    TermGroup termGroup = termStore.Groups.GetByName(groupName);
+                    TermSet termSet = termGroup.TermSets.GetByName(termSetName);
+                    ctx.Web.Context.Load(termStore);
+                    ctx.Web.Context.Load(termSet);
+                    ctx.Web.Context.ExecuteQueryRetry();
+
+                    TaxonomyFieldCreationInformation fieldCI = new TaxonomyFieldCreationInformation()
+                    {
+                        Id = taxFieldId,
+                        InternalName = taxFieldName,
+                        DisplayName = "Contoso Taxonomy Sample",
+                        Group = "Contoso Fields",
+                        TaxonomyItem = termSet,
+                    };
+                    ctx.Web.CreateTaxonomyField(fieldCI);
+                    lblStatus2.Text = string.Format("Created new taxonomy field with name of 'Contoso Taxonomy Sample'. Move to <a href='{0}'>host web</a> and test the functionality.", spContext.SPHostUrl.ToString());
                 }
                 else
                 {
@@ -65,6 +87,41 @@ namespace Core.ContentTypesAndFieldsWeb.Pages
                 }
             }
         }
+
+        protected void btnCreateGroup_Click(object sender, EventArgs e)
+        {
+            // Update Term set drop down for the taxonomy field creation.
+            var spContext = SharePointContextProvider.Current.GetSharePointContext(Context);
+
+            using (var ctx = spContext.CreateUserClientContextForSPHost())
+            {
+                TaxonomySession taxonomySession = TaxonomySession.GetTaxonomySession(ctx);
+                TermStore termStore = taxonomySession.GetDefaultSiteCollectionTermStore();
+                termStore.CreateGroup("Samples", SampleGroupId);
+                ctx.ExecuteQuery();
+            }
+            // Update drop downs
+            GenerateTaxonomyDropDowns();
+        }
+
+        protected void btnUploadTermSet_Click(object sender, EventArgs e)
+        {
+            // Update Term set drop down for the taxonomy field creation.
+            var spContext = SharePointContextProvider.Current.GetSharePointContext(Context);
+
+            using (var ctx = spContext.CreateUserClientContextForSPHost())
+            {
+                TaxonomySession taxonomySession = TaxonomySession.GetTaxonomySession(ctx);
+                TermStore termStore = taxonomySession.GetDefaultSiteCollectionTermStore();
+                TermGroup group = termStore.GetGroup(new Guid(drpGroups.SelectedValue));
+
+                group.ImportTermSet(Server.MapPath("~/Resources/ImportTermSet.csv"), 
+                    termSetId:SampleTermSetId, synchroniseDeletions:true);
+            }
+            // Update term setup drop down
+            UpdateTermSetsBasedOnSelectedGroup(drpGroups.SelectedValue);
+        }
+
         protected void drpGroups_SelectedIndexChanged(object sender, EventArgs e)
         {
             UpdateTermSetsBasedOnSelectedGroup(drpGroups.SelectedValue);
@@ -112,6 +169,7 @@ namespace Core.ContentTypesAndFieldsWeb.Pages
                         );
                 ctx.ExecuteQuery();
 
+                drpGroups.Items.Clear();
                 foreach (TermGroup group in termStore.Groups)
                 {
                     drpGroups.Items.Add(new System.Web.UI.WebControls.ListItem(group.Name, group.Id.ToString()));

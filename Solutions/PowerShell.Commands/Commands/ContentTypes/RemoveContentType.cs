@@ -1,28 +1,27 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
-using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
+﻿using System.Management.Automation;
 using Microsoft.SharePoint.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Management.Automation;
-using System.Text;
-using System.Threading.Tasks;
+using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
+using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
+using Resources = OfficeDevPnP.PowerShell.Commands.Properties.Resources;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
     [Cmdlet(VerbsCommon.Remove, "SPOContentType")]
+    [CmdletHelp("Removes a content type")]
+    [CmdletExample(
+     Code = @"PS:> Remove-SPOContentType -Identity ""Project Document""")]
     public class RemoveContentType : SPOWebCmdlet
     {
 
-        [Parameter(Mandatory = true)]
-        public SPOContentTypePipeBind Identity;
+        [Parameter(Mandatory = true, Position=0, ValueFromPipeline=true, HelpMessage="The name or ID of the content type to remove")]
+        public ContentTypePipeBind Identity;
 
         [Parameter(Mandatory = false)]
         public SwitchParameter Force;
 
         protected override void ExecuteCmdlet()
         {
-            if (Force || ShouldContinue(Properties.Resources.RemoveContentType, Properties.Resources.Confirm))
+            if (Force || ShouldContinue(Resources.RemoveContentType, Resources.Confirm))
             {
                 ContentType ct = null;
                 if (Identity.ContentType != null)
@@ -33,17 +32,17 @@ namespace OfficeDevPnP.PowerShell.Commands
                 {
                     if (!string.IsNullOrEmpty(Identity.Id))
                     {
-                        ct = this.SelectedWeb.GetContentTypeById(Identity.Id);
+                        ct = SelectedWeb.GetContentTypeById(Identity.Id);
                     }
                     else if (!string.IsNullOrEmpty(Identity.Name))
                     {
-                        ct = this.SelectedWeb.GetContentTypeByName(Identity.Id);
+                        ct = SelectedWeb.GetContentTypeByName(Identity.Name);
                     }
                 }
                 if(ct != null)
                 {
                     ct.DeleteObject();
-                    ClientContext.ExecuteQuery();
+                    ClientContext.ExecuteQueryRetry();
                 }
 
             }

@@ -1,19 +1,15 @@
 ﻿using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
-using OfficeDevPnP.PowerShell.Commands.Base;
 using Microsoft.SharePoint.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Management.Automation;
-using System.Text;
-using System.Threading.Tasks;
-using OfficeDevPnP.PowerShell.Commands.Entities;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
 
     [Cmdlet(VerbsCommon.Add, "SPOContentType")]
     [CmdletHelp("Adds a new content type")]
+    [CmdletExample(
+      Code = @"PS:> Add-SPOContentType -Name ""Project Document"" -Description ""Use for Contoso projects"" -Group ""Contoso Content Types"" -ParentContentType $ct",
+      Remarks = @"This will add a new content type based on the parent content type stored in the $ct variable.", SortOrder = 1)]
     public class AddContentType : SPOWebCmdlet
     {
         [Parameter(Mandatory = true)]
@@ -33,8 +29,8 @@ namespace OfficeDevPnP.PowerShell.Commands
 
         protected override void ExecuteCmdlet()
         {
-            var ct = this.SelectedWeb.CreateContentType(Name, Description, ContentTypeId, Group, ParentContentType);
-            WriteObject(new ContentTypeEntity(ct));
+            var ct = SelectedWeb.CreateContentType(Name, Description, ContentTypeId, Group, ParentContentType);
+            WriteObject(ct);
         }
 
 

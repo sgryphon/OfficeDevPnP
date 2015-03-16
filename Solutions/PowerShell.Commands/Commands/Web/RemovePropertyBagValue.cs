@@ -6,7 +6,7 @@ namespace OfficeDevPnP.PowerShell.Commands
     [Cmdlet(VerbsCommon.Remove, "SPOPropertyBagValue", SupportsShouldProcess = true, ConfirmImpact = ConfirmImpact.High)]
     public class RemovePropertyBagValue : SPOWebCmdlet
     {
-        [Parameter(Mandatory = true)]
+        [Parameter(Mandatory = true, Position=0, ValueFromPipeline=true)]
         public string Key;
 
         [Parameter(Mandatory = false)]
@@ -15,11 +15,11 @@ namespace OfficeDevPnP.PowerShell.Commands
         protected override void ExecuteCmdlet()
         {
 
-            if (this.SelectedWeb.PropertyBagContainsKey(Key))
+            if (SelectedWeb.PropertyBagContainsKey(Key))
             {
                 if (Force || ShouldContinue(string.Format(Properties.Resources.Delete0, Key), Properties.Resources.Confirm))
                 {
-                    this.SelectedWeb.RemovePropertyBagValue(Key);
+                    SelectedWeb.RemovePropertyBagValue(Key);
                 }
             }
         }

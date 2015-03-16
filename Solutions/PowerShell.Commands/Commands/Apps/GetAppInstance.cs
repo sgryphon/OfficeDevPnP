@@ -1,16 +1,14 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
-using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
+﻿using System.Management.Automation;
 using Microsoft.SharePoint.Client;
-using System.Management.Automation;
-using System.Linq;
 using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
+using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
     [Cmdlet(VerbsCommon.Get, "SPOAppInstance")]
     [CmdletHelp("Returns a SharePoint App Instance")]
     [CmdletExample(
-        Code = @"PS:> Get-SPOnlineAppInstance",
+        Code = @"PS:> Get-SPOAppInstance",
         Remarks = @"This will return all app instances in the site.
  ", SortOrder = 1)]
     [CmdletExample(
@@ -20,7 +18,7 @@ namespace OfficeDevPnP.PowerShell.Commands
     public class GetAppInstance : SPOWebCmdlet
     {
 
-        [Parameter(Mandatory = false, ValueFromPipeline = true, HelpMessage = "The Id of the App Instance")]
+        [Parameter(Mandatory = false, Position=0, ValueFromPipeline = true, HelpMessage = "The Id of the App Instance")]
         public GuidPipeBind Identity;
 
         protected override void ExecuteCmdlet()
@@ -28,17 +26,17 @@ namespace OfficeDevPnP.PowerShell.Commands
             
             if (Identity != null)
             {
-                var instance = this.SelectedWeb.GetAppInstanceById(Identity.Id);
+                var instance = SelectedWeb.GetAppInstanceById(Identity.Id);
                 ClientContext.Load(instance);
-                ClientContext.ExecuteQuery();
+                ClientContext.ExecuteQueryRetry();
                 WriteObject(instance);
             }
             else
             {
-                var instances = this.SelectedWeb.GetAppInstances();
+                var instances = SelectedWeb.GetAppInstances();
                 if (instances.Count > 1)
                 {
-                    WriteObject(instances);
+                    WriteObject(instances,true);
                 }
                 else if (instances.Count == 1)
                 {

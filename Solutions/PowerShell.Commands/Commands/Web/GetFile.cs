@@ -1,9 +1,7 @@
-﻿using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
-using OfficeDevPnP.PowerShell.Commands.Base;
-using Microsoft.SharePoint.Client;
-using System;
-using System.IO;
+﻿using System.IO;
 using System.Management.Automation;
+using Microsoft.SharePoint.Client;
+using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
@@ -17,8 +15,8 @@ PS:> Get-SPOFile -ServerRelativeUrl /sites/project/_catalogs/themes/15/company.s
 PS:> Get-SPOFile -ServerRelativeUrl /sites/project/_catalogs/themes/15/company.spcolor -AsString", Remarks = "Downloads the file and outputs its contents to the console", SortOrder = 3)]
     public class GetFile : SPOWebCmdlet
     {
-        [Parameter(Mandatory = true, ParameterSetName = "FILE")]
-        [Parameter(Mandatory = true, ParameterSetName = "STRING")]
+        [Parameter(Mandatory = true, ParameterSetName = "FILE", Position=0, ValueFromPipeline=true)]
+        [Parameter(Mandatory = true, ParameterSetName = "STRING", Position=0, ValueFromPipeline=true)]
         public string ServerRelativeUrl = string.Empty;
 
         [Parameter(Mandatory = false, ParameterSetName = "FILE")]
@@ -39,11 +37,11 @@ PS:> Get-SPOFile -ServerRelativeUrl /sites/project/_catalogs/themes/15/company.s
                 {
                     Path = Directory.GetCurrentDirectory();
                 }
-                this.SelectedWeb.SaveFileToLocal(ServerRelativeUrl, Path, Filename);
+                SelectedWeb.SaveFileToLocal(ServerRelativeUrl, Path, Filename);
             }
             else
             {
-                WriteObject(this.SelectedWeb.GetFileAsString(ServerRelativeUrl));
+                WriteObject(SelectedWeb.GetFileAsString(ServerRelativeUrl));
             }
 
         }

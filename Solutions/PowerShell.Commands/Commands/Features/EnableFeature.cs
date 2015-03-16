@@ -1,14 +1,8 @@
-﻿using OfficeDevPnP.PowerShell.Commands.Base;
+﻿using System.Management.Automation;
 using Microsoft.SharePoint.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.IO;
-using System.Management.Automation;
-using System.Text;
-using System.Threading.Tasks;
-using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
 using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
+using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
+using OfficeDevPnP.PowerShell.Commands.Enums;
 
 namespace OfficeDevPnP.PowerShell.Commands.Features
 {
@@ -19,7 +13,7 @@ namespace OfficeDevPnP.PowerShell.Commands.Features
     [CmdletExample(Code = "PS:> Enable-SPOnlineFeature -Identity 99a00f6e-fb81-4dc7-8eac-e09c6f9132fe -Scope Web")]
     public class EnableFeature : SPOCmdlet
     {
-        [Parameter(Mandatory = false, HelpMessage = "The id of the feature to enable.")]
+        [Parameter(Mandatory = true, Position=0, ValueFromPipeline=true, HelpMessage = "The id of the feature to enable.")]
         public GuidPipeBind Identity;
 
         [Parameter(Mandatory = false, HelpMessage = "Forcibly enable the feature.")]
@@ -31,7 +25,7 @@ namespace OfficeDevPnP.PowerShell.Commands.Features
 
         protected override void ExecuteCmdlet()
         {
-            Guid featureId = Identity.Id;
+            var featureId = Identity.Id;
             if(Scope == FeatureScope.Web)
             {
                 ClientContext.Web.ActivateFeature(featureId);
@@ -40,12 +34,6 @@ namespace OfficeDevPnP.PowerShell.Commands.Features
             {
                 ClientContext.Site.ActivateFeature(featureId);
             }
-        }
-
-        public enum FeatureScope
-        {
-            Web,
-            Site
         }
 
     }

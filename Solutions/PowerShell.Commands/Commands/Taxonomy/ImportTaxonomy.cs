@@ -1,7 +1,8 @@
-﻿using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
-using OfficeDevPnP.PowerShell.Commands.Base;
+﻿using System.Management.Automation;
 using Microsoft.SharePoint.Client;
-using System.Management.Automation;
+using Microsoft.SharePoint.Client.Taxonomy;
+using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
+using File = System.IO.File;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
@@ -23,23 +24,38 @@ PS:> Import-SPOTaxonomy -Terms 'Company|Locations|Stockholm|Central','Company|Lo
         public string Path;
 
         [Parameter(Mandatory = false, ParameterSetName = ParameterAttribute.AllParameterSets)]
-        public int LCID = 1033;
+        public int Lcid = 1033;
+
+        [Parameter(Mandatory = false, ParameterSetName = ParameterAttribute.AllParameterSets)]
+        public string TermStoreName;
 
         [Parameter(Mandatory = false, ParameterSetName = ParameterAttribute.AllParameterSets)]
         public string Delimiter = "|";
 
+        [Parameter(Mandatory = false, ParameterSetName = ParameterAttribute.AllParameterSets, HelpMessage = "If specified, terms that exist in the termset, but are not in the imported data will be removed.")]
+        public SwitchParameter SynchronizeDeletions;
+
         protected override void ExecuteCmdlet()
         {
-            string[] lines = null;
+            string[] lines;
             if (ParameterSetName == "File")
             {
-                lines = System.IO.File.ReadAllLines(Path);
+                lines = File.ReadAllLines(Path);
             }
             else
             {
                 lines = Terms;
             }
-            ClientContext.Site.ImportTerms(lines, LCID, Delimiter);
+            if (!string.IsNullOrEmpty(TermStoreName))
+            {
+                var taxSession = TaxonomySession.GetTaxonomySession(ClientContext);
+                var termStore = taxSession.TermStores.GetByName(TermStoreName);
+                ClientContext.Site.ImportTerms(lines, Lcid, termStore, Delimiter, SynchronizeDeletions);
+            }
+            else
+            {
+                ClientContext.Site.ImportTerms(lines, Lcid, Delimiter, SynchronizeDeletions);
+            }
         }
 
     }

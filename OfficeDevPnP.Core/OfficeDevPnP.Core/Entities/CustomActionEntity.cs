@@ -1,9 +1,4 @@
 ﻿using Microsoft.SharePoint.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OfficeDevPnP.Core.Entities
 {
@@ -12,6 +7,30 @@ namespace OfficeDevPnP.Core.Entities
     /// </summary>
     public class CustomActionEntity
     {
+        /// <summary>
+        /// Gets or sets a value that specifies an implementation specific XML fragment that determines user interface properties of the custom action
+        /// </summary>
+        public string CommandUIExtension { get; set; }
+
+        /// <summary>
+        /// Gets or sets the value that specifies the identifier of the object associated with the custom action.
+        /// </summary>
+        public string RegistrationId { get; set; }
+
+        /// <summary>
+        /// Specifies the type of object associated with the custom action. A Nullable Type
+        /// </summary>
+        public UserCustomActionRegistrationType? RegistrationType { get; set; }
+       
+        /// <summary>
+        /// Gets or sets the name of the custom action.
+        /// </summary>
+        public string Name 
+        {
+            get;
+            set;
+        }
+        
         /// <summary>
         /// Description of the custom action
         /// </summary>
@@ -101,5 +120,10 @@ namespace OfficeDevPnP.Core.Entities
             get;
             set;
         }
+
+        /// <summary>
+        /// Gets or sets a value that specifies the URI of a file which contains the ECMAScript to execute on the page
+        /// </summary>
+        public string ScriptSrc { get; set; }
     }
 }

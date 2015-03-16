@@ -1,8 +1,8 @@
-﻿using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
-using OfficeDevPnP.PowerShell.Commands.Base;
-using Microsoft.SharePoint.Client;
+﻿using System;
+using System.IO;
 using System.Management.Automation;
-using System;
+using Microsoft.SharePoint.Client;
+using OfficeDevPnP.PowerShell.CmdletHelpAttributes;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
@@ -15,10 +15,7 @@ PS:> Add-SPOFile -Path c:\temp\company.master -Url /sites/")]
         [Parameter(Mandatory = true, HelpMessage = "The local file path.")]
         public string Path = string.Empty;
 
-        [Parameter(Mandatory = false, HelpMessage = "The full server relative url, including the filename, of the destination location.", ParameterSetName = "Relative")]
-        public string Url = string.Empty;
-
-        [Parameter(Mandatory = false, HelpMessage = "The destination folder in the site", ParameterSetName = "Folder")]
+        [Parameter(Mandatory = true, HelpMessage = "The destination folder in the site")]
         public string Folder = string.Empty;
 
         [Parameter(Mandatory = false, HelpMessage = "If versioning is enabled, this will check out the file first if it exists, upload the file, then check it in again.")]
@@ -41,39 +38,45 @@ PS:> Add-SPOFile -Path c:\temp\company.master -Url /sites/")]
 
         protected override void ExecuteCmdlet()
         {
-            if (ParameterSetName == "Relative")
+            if (!SelectedWeb.IsPropertyAvailable("ServerRelativeUrl"))
             {
-                if (!Url.ToLower().EndsWith(System.IO.Path.GetFileName(Path).ToLower()))
-                {
-                    Url = UrlUtility.Combine(Url, System.IO.Path.GetFileName(Path));
-                }
+                ClientContext.Load(SelectedWeb, w => w.ServerRelativeUrl);
+                ClientContext.ExecuteQueryRetry();
             }
-            else
-            {
-                Url = UrlUtility.Combine(Folder, System.IO.Path.GetFileName(Path));
-            }
+
+            var folder = SelectedWeb.GetFolderByServerRelativeUrl(UrlUtility.Combine(SelectedWeb.ServerRelativeUrl, Folder));
+            ClientContext.Load(folder, f => f.ServerRelativeUrl);
+            ClientContext.ExecuteQueryRetry();
+
+            var fileUrl = UrlUtility.Combine(folder.ServerRelativeUrl, System.IO.Path.GetFileName(Path));
+
 
             // Check if the file exists
             if (Checkout)
-                this.SelectedWeb.CheckOutFile(Url);
+            {
+                try
+                {
+                    var existingFile = SelectedWeb.GetFileByServerRelativeUrl(fileUrl);
+                    if (existingFile.Exists)
+                    {
+                        SelectedWeb.CheckOutFile(fileUrl);
+                    }
+                }
+                catch
+                { // Swallow exception, file does not exist 
+                }
+            }
 
-            if (ParameterSetName == "Folder")
-            {
-                this.SelectedWeb.UploadDocumentToFolder(Path, Folder);
-            }
-            else
-            {
-                this.SelectedWeb.UploadFileToServerRelativeUrl(Path, Url, UseWebDav);
-            }
+            folder.UploadFile(new FileInfo(Path).Name, Path, true);
 
             if (Checkout)
-                this.SelectedWeb.CheckInFile(Url, CheckinType.MajorCheckIn, "");
+                SelectedWeb.CheckInFile(fileUrl, CheckinType.MajorCheckIn, "");
 
             if (Publish)
-                this.SelectedWeb.PublishFile(Url, PublishComment);
+                SelectedWeb.PublishFile(fileUrl, PublishComment);
 
             if (Approve)
-                this.SelectedWeb.ApproveFile(Url, PublishComment);
+                SelectedWeb.ApproveFile(fileUrl, PublishComment);
         }
     }
 }

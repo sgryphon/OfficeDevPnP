@@ -1,8 +1,8 @@
-﻿using Microsoft.SharePoint.Client;
-using Microsoft.SharePoint.Client.Taxonomy;
-using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
-using System;
+﻿using System;
 using System.Management.Automation;
+using Microsoft.SharePoint.Client;
+using OfficeDevPnP.Core.Entities;
+using OfficeDevPnP.PowerShell.Commands.Base.PipeBinds;
 
 namespace OfficeDevPnP.PowerShell.Commands
 {
@@ -10,7 +10,7 @@ namespace OfficeDevPnP.PowerShell.Commands
     public class AddTaxonomyField : SPOWebCmdlet
     {
         [Parameter(Mandatory = false)]
-        public SPOListPipeBind List;
+        public ListPipeBind List;
 
         [Parameter(Mandatory = true)]
         public string DisplayName;
@@ -45,6 +45,7 @@ namespace OfficeDevPnP.PowerShell.Commands
 
         protected override void ExecuteCmdlet()
         {
+            Field field;
             var termSet = ClientContext.Site.GetTaxonomyItemByPath(TermSetPath, TermPathDelimiter);
             Guid id = Id.Id;
             if (id == Guid.Empty)
@@ -52,18 +53,31 @@ namespace OfficeDevPnP.PowerShell.Commands
                 id = Guid.NewGuid();
             }
 
+            TaxonomyFieldCreationInformation fieldCI = new TaxonomyFieldCreationInformation()
+            {
+                Id = id,
+                InternalName = InternalName,
+                DisplayName = DisplayName,
+                Group = Group,
+                TaxonomyItem = termSet,
+                MultiValue = MultiValue,
+                Required = Required,
+                AddToDefaultView = AddToDefaultView
+            };
+
             if (List != null)
             {
-                var list = this.SelectedWeb.GetList(List);
+                var list = SelectedWeb.GetList(List);
 
-                //var termStore = (TermStore) OfficeDevPnP.PowerShell.Core.SPOTaxonomy.GetDefaultKeywordsTermStore(ClientContext);
-                //var termSet = (TermSet) OfficeDevPnP.PowerShell.Core.SPOTaxonomy.GetTaxonomyItemByPath(TermSetPath, ClientContext);
-                list.CreateTaxonomyField(id, InternalName, DisplayName, Group, termSet as TermSet, MultiValue);
+              
+
+                field = list.CreateTaxonomyField(fieldCI);
             }
             else
             {
-                this.SelectedWeb.CreateTaxonomyField(id, InternalName, DisplayName, Group, termSet as TermSet, MultiValue);
+                field = SelectedWeb.CreateTaxonomyField(fieldCI);
             }
+            WriteObject(field);
         }
 
     }
